@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---- macOS: Metal + Apple Accelerate path ----
+  macos-metal:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: C++ build (Metal + Accelerate)
+        run: ./build.sh
+
+      - name: C++ tests
+        run: ./build/run_tests
+
+      - name: Python bindings + tests
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pybind11 numpy pytest
+          ./python/build_python.sh
+          PYTHONPATH=python python3 -m pytest python/tests -v
+
+  # ---- Linux: CPU-only path (no Metal, no Accelerate, no CUDA yet) ----
+  # Uses the reference C++ matmul / Cholesky path. Faster Linux CPU
+  # via OpenBLAS / LAPACKE is in stage 2 of the launch plan.
+  linux-cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: C++ build (CPU only, reference BLAS)
+        env:
+          LIGHTGP_NO_METAL: '1'
+          LIGHTGP_NO_ACCELERATE: '1'
+        run: ./build.sh
+
+      - name: C++ tests
+        run: ./build/run_tests
+
+      - name: Python bindings + tests
+        env:
+          LIGHTGP_NO_METAL: '1'
+          LIGHTGP_NO_ACCELERATE: '1'
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pybind11 numpy pytest
+          ./python/build_python.sh
+          PYTHONPATH=python python3 -m pytest python/tests -v
+
+  # ---- CUDA job (placeholder — uncomment once a self-hosted GPU runner is wired) ----
+  # linux-cuda:
+  #   runs-on: [self-hosted, gpu]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: C++ build (CUDA)
+  #       run: |
+  #         cmake -B build -DLIGHTGP_ENABLE_CUDA=ON -DLIGHTGP_NO_METAL=ON
+  #         cmake --build build -j
+  #     - name: C++ tests
+  #       run: ./build/run_tests

@@ -1,0 +1,40 @@
+# C++ build artifacts
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.metallib
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+*.whl
+.pytest_cache/
+
+# Generated bindings
+python/lightgp/_core*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Benchmark / test outputs
+*.json
+!benchmarks/python/*.json.example
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Private working files: paper drafts, internal reports, planning docs
+paper/
+report.md
+task*.md

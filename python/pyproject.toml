@@ -1,0 +1,21 @@
+[build-system]
+requires = ["scikit-build-core>=0.5", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "lightgp"
+version = "0.1.0"
+description = "lightgp: Lightweight Gaussian Process inference — C++/Metal/Accelerate with Python bindings"
+readme = "../README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.20"]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+bench = ["gpytorch>=1.10", "torch>=2.0"]
+
+[tool.scikit-build]
+cmake.source-dir = ".."
+cmake.args = ["-DLIGHTGP_BUILD_PYTHON=ON"]
+wheel.packages = ["lightgp"]
