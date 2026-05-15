@@ -6,8 +6,9 @@
 #include <cstdio>
 #include <random>
 
-#ifdef LIGHTGP_HAS_ACCELERATE
+#if defined(LIGHTGP_HAS_ACCELERATE) || defined(LIGHTGP_HAS_OPENBLAS)
 #include "blas_accel.h"
+#define LIGHTGP_HAS_BLAS 1
 #endif
 
 namespace lightgp {
@@ -59,8 +60,9 @@ Tensor Tensor::transpose() const {
 Tensor Tensor::matmul(const Tensor& other) const {
     assert(cols_ == other.rows_);
     Tensor r(rows_, other.cols_);
-#ifdef LIGHTGP_HAS_ACCELERATE
-    // Apple AMX-accelerated sgemm. Beats hand-rolled triple loop by 10-50x at moderate N.
+#ifdef LIGHTGP_HAS_BLAS
+    // Tuned BLAS sgemm (Apple AMX via Accelerate on macOS, OpenBLAS on Linux).
+    // Beats hand-rolled triple loop by 10-50x at moderate N.
     gemm_accelerate(*this, other, r);
 #else
     // i-k-j ordering: B's row and result row swept contiguously.

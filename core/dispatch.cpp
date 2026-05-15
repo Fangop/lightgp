@@ -5,8 +5,9 @@
 #include "../kernels/cpu/matern_cpu.h"
 #include "../kernels/cpu/rbf_cpu.h"
 #include "../solvers/cpu/cholesky_cpu.h"
-#ifdef LIGHTGP_HAS_ACCELERATE
+#if defined(LIGHTGP_HAS_ACCELERATE) || defined(LIGHTGP_HAS_OPENBLAS)
 #include "blas_accel.h"
+#define LIGHTGP_HAS_BLAS 1
 #endif
 #ifdef LIGHTGP_HAS_METAL
 #include "../kernels/metal/matern_metal.h"
@@ -14,6 +15,13 @@
 #include "../kernels/metal/rbf_metal.h"
 #include "../solvers/metal/cholesky_metal.h"
 #include "../solvers/metal/cholesky_solve_metal.h"
+#endif
+#ifdef LIGHTGP_HAS_CUDA
+#include "../kernels/cuda/cuda_context.h"
+#include "../kernels/cuda/matern_cuda.h"
+#include "../kernels/cuda/rbf_cuda.h"
+#include "../solvers/cuda/cholesky_cuda.h"
+#include "../solvers/cuda/cholesky_solve_cuda.h"
 #endif
 
 namespace lightgp {
@@ -52,9 +60,18 @@ Tensor dispatch_kernel(const Tensor& X1, const Tensor& X2,
 #endif
         }
         case Backend::CUDA: {
+#ifdef LIGHTGP_HAS_CUDA
+            if (CudaContext::instance().available()) {
+                return matern_kernel_cuda(X1, X2, length_scale, signal_variance, type);
+            }
             static bool warned = false;
-            warn_once("CUDA Matern not implemented; using CPU", warned);
+            warn_once("CUDA Matern requested but device unavailable; using CPU", warned);
             return matern_kernel_cpu(X1, X2, length_scale, signal_variance, type);
+#else
+            static bool warned = false;
+            warn_once("CUDA Matern requested but not compiled in; using CPU", warned);
+            return matern_kernel_cpu(X1, X2, length_scale, signal_variance, type);
+#endif
         }
         case Backend::CPU:
         default:
@@ -81,9 +98,18 @@ Tensor dispatch_rbf_kernel(const Tensor& X1, const Tensor& X2,
 #endif
         }
         case Backend::CUDA: {
+#ifdef LIGHTGP_HAS_CUDA
+            if (CudaContext::instance().available()) {
+                return rbf_kernel_cuda(X1, X2, length_scale, signal_variance);
+            }
             static bool warned = false;
-            warn_once("CUDA backend not implemented; using CPU", warned);
+            warn_once("CUDA RBF requested but device unavailable; using CPU", warned);
             return rbf_kernel_cpu(X1, X2, length_scale, signal_variance);
+#else
+            static bool warned = false;
+            warn_once("CUDA RBF requested but not compiled in; using CPU", warned);
+            return rbf_kernel_cpu(X1, X2, length_scale, signal_variance);
+#endif
         }
         case Backend::CPU:
         default:
@@ -109,9 +135,18 @@ bool dispatch_cholesky_with_jitter(const Tensor& K, Tensor& L, float& jitter_use
 #endif
         }
         case Backend::CUDA: {
+#ifdef LIGHTGP_HAS_CUDA
+            if (CudaContext::instance().available()) {
+                return cholesky_cuda_with_jitter(K, L, jitter_used);
+            }
             static bool warned = false;
-            warn_once("CUDA Cholesky not implemented; using CPU", warned);
+            warn_once("CUDA Cholesky requested but device unavailable; using CPU", warned);
             return cholesky_with_jitter(K, L, jitter_used);
+#else
+            static bool warned = false;
+            warn_once("CUDA Cholesky requested but not compiled in; using CPU", warned);
+            return cholesky_with_jitter(K, L, jitter_used);
+#endif
         }
         case Backend::CPU:
         default:
@@ -136,9 +171,18 @@ Tensor dispatch_cholesky_solve(const Tensor& L, const Tensor& b, Backend backend
 #endif
         }
         case Backend::CUDA: {
+#ifdef LIGHTGP_HAS_CUDA
+            if (CudaContext::instance().available()) {
+                return cholesky_solve_cuda(L, b);
+            }
             static bool warned = false;
-            warn_once("CUDA cholesky_solve not implemented; using CPU", warned);
+            warn_once("CUDA cholesky_solve requested but device unavailable; using CPU", warned);
             return cholesky_solve(L, b);
+#else
+            static bool warned = false;
+            warn_once("CUDA cholesky_solve requested but not compiled in; using CPU", warned);
+            return cholesky_solve(L, b);
+#endif
         }
         case Backend::CPU:
         default:
@@ -149,7 +193,7 @@ Tensor dispatch_cholesky_solve(const Tensor& L, const Tensor& b, Backend backend
 namespace {
 
 Tensor forward_solve_cpu_local(const Tensor& L, const Tensor& B) {
-#ifdef LIGHTGP_HAS_ACCELERATE
+#ifdef LIGHTGP_HAS_BLAS
     Tensor Y = B;
     trsm_lower_no_trans_accelerate(L, Y);
     return Y;
@@ -187,9 +231,18 @@ Tensor dispatch_forward_solve(const Tensor& L, const Tensor& b, Backend backend)
 #endif
         }
         case Backend::CUDA: {
+#ifdef LIGHTGP_HAS_CUDA
+            if (CudaContext::instance().available()) {
+                return forward_solve_cuda(L, b);
+            }
             static bool warned = false;
-            warn_once("CUDA forward_solve not implemented; using CPU", warned);
+            warn_once("CUDA forward_solve requested but device unavailable; using CPU", warned);
             return forward_solve_cpu_local(L, b);
+#else
+            static bool warned = false;
+            warn_once("CUDA forward_solve requested but not compiled in; using CPU", warned);
+            return forward_solve_cpu_local(L, b);
+#endif
         }
         case Backend::CPU:
         default:

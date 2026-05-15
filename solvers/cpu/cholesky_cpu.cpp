@@ -3,16 +3,17 @@
 #include <cassert>
 #include <cmath>
 
-#ifdef LIGHTGP_HAS_ACCELERATE
+#if defined(LIGHTGP_HAS_ACCELERATE) || defined(LIGHTGP_HAS_OPENBLAS)
 #include "../../core/blas_accel.h"
+#define LIGHTGP_HAS_BLAS 1
 #endif
 
 namespace lightgp {
 
 bool cholesky_cpu(const Tensor& K, Tensor& L) {
     assert(K.rows() == K.cols());
-#ifdef LIGHTGP_HAS_ACCELERATE
-    // LAPACK spotrf via Accelerate: column-major LAPACK + row-major data → lower factor in-place.
+#ifdef LIGHTGP_HAS_BLAS
+    // LAPACK spotrf via Accelerate/OpenBLAS: column-major LAPACK + row-major data → lower factor in-place.
     L = K;
     return cholesky_accelerate(L);
 #else
@@ -44,7 +45,7 @@ float log_det_from_cholesky(const Tensor& L) {
 Tensor cholesky_solve(const Tensor& L, const Tensor& b) {
     assert(L.rows() == L.cols());
     assert(L.rows() == b.rows());
-#ifdef LIGHTGP_HAS_ACCELERATE
+#ifdef LIGHTGP_HAS_BLAS
     Tensor x = b;
     trsm_lower_no_trans_accelerate(L, x);  // L y = b → x holds y
     trsm_lower_trans_accelerate(L, x);     // L^T x = y → x holds final

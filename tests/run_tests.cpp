@@ -19,6 +19,7 @@ void run_gp_sparse_tests();
 void run_matern_tests();
 void run_matern_metal_tests();
 void run_kernel_object_tests();
+void run_cuda_tests();
 }  // namespace lightgp
 
 int main() {
@@ -38,6 +39,7 @@ int main() {
     lightgp::run_matern_tests();
     lightgp::run_matern_metal_tests();
     lightgp::run_kernel_object_tests();
+    lightgp::run_cuda_tests();
 
     const int passed = lightgp::test::pass_count();
     const int failed = lightgp::test::fail_count();
