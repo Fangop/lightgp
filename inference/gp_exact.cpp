@@ -16,6 +16,10 @@
 #include "../kernels/metal/metal_context.h"
 #include "../kernels/metal/rbf_matvec.h"
 #endif
+#ifdef LIGHTGP_HAS_CUDA
+#include "../kernels/cuda/cuda_context.h"
+#include "../kernels/cuda/rbf_matvec_cuda.h"
+#endif
 
 namespace lightgp {
 
@@ -48,12 +52,20 @@ Backend GPExact::effective_backend() const {
 }
 
 Tensor GPExact::matvec_impl(const Tensor& v) const {
-#ifdef LIGHTGP_HAS_METAL
     if (matrix_free_) {
-        return rbf_matvec_metal(X_train_, v,
-                                hp_.length_scale, hp_.signal_variance, hp_.noise_variance);
-    }
+#ifdef LIGHTGP_HAS_METAL
+        if (effective_backend() == Backend::Metal) {
+            return rbf_matvec_metal(X_train_, v,
+                                    hp_.length_scale, hp_.signal_variance, hp_.noise_variance);
+        }
 #endif
+#ifdef LIGHTGP_HAS_CUDA
+        if (effective_backend() == Backend::CUDA) {
+            return rbf_matvec_cuda(X_train_, v,
+                                   hp_.length_scale, hp_.signal_variance, hp_.noise_variance);
+        }
+#endif
+    }
     return K_y_.matmul(v);
 }
 
@@ -108,11 +120,15 @@ bool GPExact::fit(const Tensor& X_train, const Tensor& y_train) {
     K.add_jitter(hp_.noise_variance);
 
     if (solver_ == Solver::CG) {
-        // Matrix-free path on Metal: skip materializing the N x N kernel.
-#ifdef LIGHTGP_HAS_METAL
-        matrix_free_ = (effective_backend() == Backend::Metal && MetalContext::instance().available());
-#else
+        // Matrix-free path on Metal / CUDA: skip materializing the N x N kernel.
         matrix_free_ = false;
+#ifdef LIGHTGP_HAS_METAL
+        if (effective_backend() == Backend::Metal && MetalContext::instance().available())
+            matrix_free_ = true;
+#endif
+#ifdef LIGHTGP_HAS_CUDA
+        if (effective_backend() == Backend::CUDA && CudaContext::instance().available())
+            matrix_free_ = true;
 #endif
         if (!matrix_free_) {
             K_y_ = std::move(K);

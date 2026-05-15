@@ -38,3 +38,6 @@ env/
 paper/
 report.md
 task*.md
+
+# Local Claude Code working state
+.claude/

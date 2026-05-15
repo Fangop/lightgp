@@ -1,12 +1,22 @@
 #include "blas_accel.h"
 
-#ifdef LIGHTGP_HAS_ACCELERATE
+#if defined(LIGHTGP_HAS_ACCELERATE) || defined(LIGHTGP_HAS_OPENBLAS)
 
 #include <cassert>
 
+#if defined(LIGHTGP_HAS_ACCELERATE)
 // Use the SDK's declarations (LAPACK ints are __LAPACK_int = long on recent macOS SDKs).
 #define ACCELERATE_NEW_LAPACK
 #include <Accelerate/Accelerate.h>
+namespace lightgp { using lapack_int = __LAPACK_int; }
+#else  // LIGHTGP_HAS_OPENBLAS
+#include <cblas.h>
+namespace lightgp { using lapack_int = int; }
+// LAPACK Fortran symbol — declared here so we don't depend on the optional lapacke headers.
+extern "C" void spotrf_(const char* uplo, const lightgp::lapack_int* n,
+                        float* a, const lightgp::lapack_int* lda,
+                        lightgp::lapack_int* info);
+#endif
 
 namespace lightgp {
 
@@ -27,8 +37,8 @@ void gemm_accelerate(const Tensor& A, const Tensor& B, Tensor& C) {
 
 bool cholesky_accelerate(Tensor& K) {
     assert(K.rows() == K.cols());
-    __LAPACK_int n = static_cast<__LAPACK_int>(K.rows());
-    __LAPACK_int info = 0;
+    lapack_int n = static_cast<lapack_int>(K.rows());
+    lapack_int info = 0;
     // Row-major SPD interpreted as column-major is its own transpose (= itself, symmetric).
     // spotrf('U', ...) computes upper R s.t. A = R^T R in LAPACK's view; in row-major
     // memory the result lands in the lower triangle and equals our desired L.
@@ -67,4 +77,4 @@ void trsm_lower_trans_accelerate(const Tensor& L, Tensor& B) {
 
 }  // namespace lightgp
 
-#endif  // LIGHTGP_HAS_ACCELERATE
+#endif  // LIGHTGP_HAS_ACCELERATE || LIGHTGP_HAS_OPENBLAS
