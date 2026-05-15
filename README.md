@@ -54,6 +54,11 @@ model = gp.GPSparse(noise_var=0.1)
 model.fit(X_big, y_big, num_inducing=200)  # scales to N=50000 in ~100 ms
 ```
 
+## Documentation
+
+Full docs at **https://fangop.github.io/lightgp/** — getting started, six tutorials,
+complete API reference, benchmarks gallery, theory pages, and a developer guide.
+
 ## Features
 
 | Feature                                | lightgp | GPyTorch          |
