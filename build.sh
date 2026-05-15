@@ -43,6 +43,7 @@ CPP_SRCS=(
     inference/gp_exact.cpp
     inference/gp_sparse.cpp
     inference/ski.cpp
+    inference/ski_accel.cpp
     data/datasets.cpp
     tests/test_tensor.cpp
     tests/test_rbf_cpu.cpp

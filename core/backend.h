@@ -41,6 +41,10 @@ inline Backend resolve_auto_backend(std::size_t n, std::size_t d, Solver solver)
         if (n >= 1024) return Backend::CUDA;
         return Backend::CPU;
     }
+    // SKI on Mac: vDSP FFT (CPU) is the fast path; Metal doesn't currently host
+    // the per-axis Toeplitz FFT, so routing to Metal would silently fall back
+    // through the CPU dense path which is much slower.
+    if (solver == Solver::SKI) return Backend::CPU;
     if (!has_metal) return Backend::CPU;
     if (solver == Solver::CG && n > 2000) return Backend::Metal;
     if (d >= 16 && n >= 2000) return Backend::Metal;

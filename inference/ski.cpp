@@ -1,5 +1,9 @@
 #include "ski.h"
 
+#ifdef LIGHTGP_HAS_ACCELERATE
+#include "ski_accel.h"
+#endif
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -297,6 +301,11 @@ struct SKIData::Impl {
     // incomplete SkiCudaState type here.
     mutable SkiCudaStatePtr cuda_state;
 #endif
+#ifdef LIGHTGP_HAS_ACCELERATE
+    // Per-axis FFT plans (vDSP DFT setups + precomputed kernel FFTs). Lazily built
+    // on the first CPU matvec so the construction cost is paid only if used.
+    mutable std::vector<std::unique_ptr<ToeplitzFFTCpu>> fft_plans;
+#endif
 };
 
 SKIData::SKIData(SKIGrid grid, SparseMatrix W, std::vector<Tensor> toeplitz_cols,
@@ -333,9 +342,24 @@ Tensor SKIData::matvec(const Tensor& v) const {
         }
     }
 #endif
-    // CPU dense path: u = W^T v ; w = K_grid u ; y = W w + sn2 v.
+
+    // CPU path: u = W^T v ; w = K_grid u ; y = W w + sn2 v.
     Tensor u = impl_->W.matvec_transpose(v);
+
+#ifdef LIGHTGP_HAS_ACCELERATE
+    // vDSP FFT path — O(M log M) per axis Toeplitz matvec instead of O(M^2).
+    if (impl_->fft_plans.empty()) {
+        impl_->fft_plans.reserve(impl_->toeplitz_cols.size());
+        for (const Tensor& col : impl_->toeplitz_cols) {
+            impl_->fft_plans.emplace_back(std::make_unique<ToeplitzFFTCpu>(col));
+        }
+    }
+    Tensor w = kron_toeplitz_matvec_accelerate(impl_->fft_plans,
+                                               impl_->grid.grid_sizes, u);
+#else
     Tensor w = kron_toeplitz_matvec_cpu(impl_->toeplitz_cols, impl_->grid.grid_sizes, u);
+#endif
+
     Tensor y = impl_->W.matvec(w);
     for (int i = 0; i < static_cast<int>(y.rows()); ++i) {
         y(i, 0) += impl_->noise_var * v(i, 0);

@@ -17,6 +17,10 @@
 #include "../kernels/cuda/cuda_context.h"
 #endif
 
+#ifdef LIGHTGP_HAS_ACCELERATE
+#include "../inference/ski_accel.h"
+#endif
+
 namespace lightgp {
 
 namespace {
@@ -231,6 +235,52 @@ void run_ski_tests() {
         const float ll = gp.log_marginal_likelihood();
         LIGHTGP_CHECK(std::isfinite(ll));
     }
+
+#ifdef LIGHTGP_HAS_ACCELERATE
+    // -- vDSP FFT Toeplitz matvec matches the dense O(M^2) reference --------
+    // Random-but-decaying symmetric Toeplitz column; FFT path must match the
+    // dense path on a few random vectors within reasonable float32 tolerance.
+    {
+        std::mt19937_64 rng(0xF1B0u);
+        std::normal_distribution<float> gauss(0.0f, 1.0f);
+        for (int M : {8, 16, 32, 63, 128}) {
+            Tensor col(M, 1);
+            for (int i = 0; i < M; ++i) col(i, 0) = std::exp(-0.05f * i) + 0.01f * gauss(rng);
+            ToeplitzFFTCpu plan(col);
+            LIGHTGP_CHECK(plan.M() == M);
+            for (int trial = 0; trial < 4; ++trial) {
+                Tensor v(M, 1);
+                for (int i = 0; i < M; ++i) v(i, 0) = gauss(rng);
+                Tensor fft_out = plan.matvec(v);
+                Tensor dense_out = toeplitz_matvec_cpu(col, v);
+                // Allow ~1e-4 relative — FFT round-trip + complex multiply on fp32.
+                LIGHTGP_CHECK(relative_error(fft_out, dense_out) < 1e-4f);
+            }
+        }
+    }
+
+    // -- 2D Kronecker-Toeplitz via FFT matches the dense reference ----------
+    {
+        std::mt19937_64 rng(0xF1B1u);
+        std::normal_distribution<float> gauss(0.0f, 1.0f);
+        const int Mx = 16, My = 32;
+        const int total = Mx * My;
+        Tensor col_x(Mx, 1), col_y(My, 1);
+        for (int i = 0; i < Mx; ++i) col_x(i, 0) = std::exp(-0.10f * i);
+        for (int i = 0; i < My; ++i) col_y(i, 0) = std::exp(-0.03f * i);
+        std::vector<std::unique_ptr<ToeplitzFFTCpu>> plans;
+        plans.emplace_back(std::make_unique<ToeplitzFFTCpu>(col_x));
+        plans.emplace_back(std::make_unique<ToeplitzFFTCpu>(col_y));
+        std::vector<Tensor> cols{col_x, col_y};
+        std::vector<int> grid_sizes{Mx, My};
+
+        Tensor v(total, 1);
+        for (int i = 0; i < total; ++i) v(i, 0) = gauss(rng);
+        Tensor fft_out = kron_toeplitz_matvec_accelerate(plans, grid_sizes, v);
+        Tensor dense_out = kron_toeplitz_matvec_cpu(cols, grid_sizes, v);
+        LIGHTGP_CHECK(relative_error(fft_out, dense_out) < 1e-4f);
+    }
+#endif  // LIGHTGP_HAS_ACCELERATE
 }
 
 }  // namespace lightgp
