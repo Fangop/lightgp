@@ -1,7 +1,7 @@
 # LightGP
 
 **Lightweight Gaussian Process inference in C++ with Python bindings.**
-Apple Metal + Accelerate (AMX) on macOS; CUDA backend in progress. No PyTorch. No TensorFlow. Just numpy.
+Apple Metal + Accelerate (AMX) on macOS; CUDA + OpenBLAS on Linux. No PyTorch. No TensorFlow. Just numpy.
 
 [![CI](https://github.com/Fangop/lightgp/actions/workflows/ci.yml/badge.svg)](https://github.com/Fangop/lightgp/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-fangop.github.io%2Flightgp-2563EB)](https://fangop.github.io/lightgp/)
@@ -73,7 +73,7 @@ complete API reference, benchmarks gallery, theory pages, and a developer guide.
 | Zero runtime dependencies              | ✅     | ❌ (PyTorch)      |
 | Apple Metal backend                    | ✅     | partial (MPS)     |
 | Apple Accelerate / AMX                 | ✅     | ✅ (via PyTorch)  |
-| CUDA backend                           | 🚧 WIP | ✅                |
+| CUDA backend                           | ✅     | ✅                |
 | `pip install`                          | ✅     | ✅                |
 | Embeddable in pure C++ projects        | ✅     | ❌                |
 | Matrix-free $K\mathbf v$ on Metal      | ✅     | ❌                |
@@ -146,10 +146,15 @@ gp_sp.fit(X_huge, y_huge, /*num_inducing=*/200);   // O(NM² + M³)
 ./build/bench_paper                     # full benchmark suite, JSON-per-line stdout
 ```
 
-### Linux (CPU-only for now, CUDA backend coming)
+### Linux (CPU + optional CUDA)
 
 ```bash
+# CPU only (OpenBLAS / LAPACKE auto-detected if installed)
 LIGHTGP_NO_METAL=1 LIGHTGP_NO_ACCELERATE=1 ./build.sh
+
+# With CUDA (requires nvcc + CUDA Toolkit)
+LIGHTGP_ENABLE_CUDA=1 ./build.sh
+
 ./build/run_tests
 ```
 
@@ -158,6 +163,12 @@ Install OpenBLAS / LAPACK first to get the fast CPU path:
 ```bash
 sudo apt install libopenblas-dev liblapacke-dev   # Debian / Ubuntu
 ```
+
+The CUDA backend wires through ``Backend::CUDA`` and covers cuBLAS GEMM,
+cuSOLVER Cholesky, cuFFT (used by ``Solver::SKI``), and custom CUDA kernels
+for the RBF / Matérn matrix construction and matrix-free :math:`K\mathbf v`
+matvec. ``Backend::Auto`` picks CUDA automatically when the build was
+configured with ``LIGHTGP_ENABLE_CUDA=1`` and an NVIDIA device is present.
 
 ### Opt-out flags
 
