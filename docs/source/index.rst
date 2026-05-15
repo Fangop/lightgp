@@ -7,6 +7,16 @@ LightGP
    Metal, CUDA, and CPU backends. Composable kernels. Zero dependencies
    beyond numpy.
 
+.. figure:: _static/figures/hero_regression.png
+   :alt: GP regression with LightGP: training points, posterior mean, 95% credible interval, true function, and uncertainty growth on extrapolation.
+   :align: center
+   :width: 100%
+
+   GP posterior on synthetic ``sin(x)`` data: blue mean and 95% credible band
+   from :class:`lightgp.GPExact` with an :class:`lightgp.RBF` kernel.
+   Uncertainty widens through the training-data gap near ``x = 1`` and
+   beyond the training range — exactly what a calibrated GP should do.
+
 .. code-block:: python
 
    import numpy as np
