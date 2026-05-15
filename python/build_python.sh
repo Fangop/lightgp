@@ -17,8 +17,14 @@ EXT_SUFFIX=$($PYTHON -c 'import sysconfig; print(sysconfig.get_config_var("EXT_S
 
 # Compile + link the binding module. We deliberately include all C++ object files
 # from the regular library build (build/*.o) rather than re-compiling sources.
-# Skip tests/, examples/ and bench_*.o (we only want library code).
-LIB_OBJS=$(ls build/*.o | grep -v -E '(test_|examples_|benchmarks_)' || true)
+# Skip tests/, examples/ and bench_*.o (we only want library code). If CUDA wasn't
+# requested for this Python build, also drop any leftover .cu.o objects so we don't
+# pull in unresolved CUDA symbols.
+if [[ -n "${LIGHTGP_ENABLE_CUDA:-}" ]] && command -v nvcc >/dev/null 2>&1; then
+    LIB_OBJS=$(ls build/*.o | grep -v -E '(test_|examples_|benchmarks_)' || true)
+else
+    LIB_OBJS=$(ls build/*.o | grep -v -E '(test_|examples_|benchmarks_|\.cu\.o$)' || true)
+fi
 
 UNAME=$(uname -s)
 EXTRA_FLAGS=()
@@ -36,7 +42,7 @@ else
     if [[ -n "${LIGHTGP_ENABLE_CUDA:-}" ]] && command -v nvcc >/dev/null 2>&1; then
         EXTRA_FLAGS+=(-DLIGHTGP_HAS_CUDA)
         CUDA_LIBDIR=$(dirname "$(dirname "$(command -v nvcc)")")/lib64
-        EXTRA_LINK+=(-L"${CUDA_LIBDIR}" -lcudart -lcublas -lcusolver)
+        EXTRA_LINK+=(-L"${CUDA_LIBDIR}" -lcudart -lcublas -lcusolver -lcufft)
     fi
 fi
 

@@ -42,6 +42,8 @@ CPP_SRCS=(
     solvers/cpu/slq_cpu.cpp
     inference/gp_exact.cpp
     inference/gp_sparse.cpp
+    inference/ski.cpp
+    inference/ski_accel.cpp
     data/datasets.cpp
     tests/test_tensor.cpp
     tests/test_rbf_cpu.cpp
@@ -60,6 +62,7 @@ CPP_SRCS=(
     tests/test_rbf_matvec.cpp
     tests/test_kernel_objects.cpp
     tests/test_cuda.cpp
+    tests/test_ski.cpp
 )
 
 COMMON_FLAGS=(-std=c++17 -O2 -fPIC -Wall -Wextra -Wpedantic -I.)
@@ -125,11 +128,13 @@ if [[ "${ENABLE_METAL}" -eq 1 ]]; then
 fi
 
 if [[ "${ENABLE_CUDA}" -eq 1 ]]; then
-    for src in kernels/cuda/cuda_context.cu kernels/cuda/gemm_cuda.cu kernels/cuda/rbf_cuda.cu kernels/cuda/matern_cuda.cu kernels/cuda/rbf_matvec_cuda.cu solvers/cuda/cholesky_cuda.cu solvers/cuda/cholesky_solve_cuda.cu; do
+    for src in kernels/cuda/cuda_context.cu kernels/cuda/gemm_cuda.cu kernels/cuda/rbf_cuda.cu kernels/cuda/matern_cuda.cu kernels/cuda/rbf_matvec_cuda.cu solvers/cuda/cholesky_cuda.cu solvers/cuda/cholesky_solve_cuda.cu inference/ski_cuda.cu; do
         out="build/$(echo "$src" | tr '/' '_').o"
         nvcc "${NVCC_FLAGS[@]}" -c "$src" -o "$out"
         OBJS+=("$out")
     done
+    # ski_cuda.cu pulls in cuFFT; thread it through link flags.
+    LINK_FLAGS+=(-lcufft)
 fi
 
 # Link the test runner.
@@ -155,3 +160,7 @@ if [[ "${ENABLE_CUDA}" -eq 1 ]]; then
     clang++ "${COMMON_FLAGS[@]}" "${OBJS[@]}" "benchmarks/bench_cuda.cpp" ${LINK_FLAGS[@]+"${LINK_FLAGS[@]}"} -o "build/bench_cuda"
     echo "Built build/bench_cuda"
 fi
+
+# SKI bench builds on both CPU-only and CUDA configurations.
+clang++ "${COMMON_FLAGS[@]}" "${OBJS[@]}" "benchmarks/bench_ski.cpp" ${LINK_FLAGS[@]+"${LINK_FLAGS[@]}"} -o "build/bench_ski"
+echo "Built build/bench_ski"

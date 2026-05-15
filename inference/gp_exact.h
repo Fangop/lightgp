@@ -11,6 +11,8 @@
 
 namespace lightgp {
 
+class SKIData;
+
 /// Hyperparameters of the exact-GP model in their natural (positive) parameterization.
 /// Legacy API — for kernel composition use the Kernel+MeanFunction constructor.
 struct GPHyperparams {
@@ -30,6 +32,14 @@ public:
     explicit GPExact(GPHyperparams hp = {},
                      Backend backend = Backend::CPU,
                      Solver solver = Solver::Cholesky);
+
+    /// Defined out-of-line in gp_exact.cpp so `std::unique_ptr<SKIData>` can hold
+    /// the forward-declared `SKIData` here.
+    ~GPExact();
+    GPExact(const GPExact&) = delete;
+    GPExact& operator=(const GPExact&) = delete;
+    GPExact(GPExact&&) noexcept;
+    GPExact& operator=(GPExact&&) noexcept;
 
     /// Construct with a Kernel + MeanFunction object (supports composition).
     /// Use std::make_shared<RBFKernel>() etc. and operator+ / scale() to compose.
@@ -88,8 +98,9 @@ public:
     void set_solver(Solver s) { solver_ = s; }
 
 private:
-    /// In CG mode, evaluates K_y * v either by reading K_y_ or by calling the
-    /// Metal matrix-free kernel-vector product (when matrix_free_ is true).
+    /// In CG / SKI mode, evaluates K_y * v: reads K_y_ (explicit), calls a backend
+    /// matrix-free kernel (Metal/CUDA) when `matrix_free_`, or routes through
+    /// `ski_data_->matvec` when SKI is active.
     Tensor matvec_impl(const Tensor& v) const;
     /// Resolves Backend::Auto to a concrete CPU/Metal choice given the current shape.
     Backend effective_backend() const;
@@ -111,6 +122,8 @@ private:
     // otherwise it stays empty and matvecs go through the Metal matrix-free kernel.
     Tensor K_y_;
     bool matrix_free_ = false;
+    /// SKI state — only populated when solver_ == Solver::SKI.
+    std::unique_ptr<SKIData> ski_data_;
     // Common:
     Tensor alpha_;
     float jitter_used_ = 0.0f;

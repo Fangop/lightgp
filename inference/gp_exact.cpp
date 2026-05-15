@@ -11,6 +11,9 @@
 #include "../solvers/cpu/cg_cpu.h"
 #include "../solvers/cpu/cholesky_cpu.h"
 #include "../solvers/cpu/slq_cpu.h"
+#include "ski.h"
+#include "../kernels/rbf_kernel.h"
+#include "../kernels/matern_kernel.h"
 
 #ifdef LIGHTGP_HAS_METAL
 #include "../kernels/metal/metal_context.h"
@@ -29,6 +32,10 @@ constexpr float kPi = 3.14159265358979323846f;
 
 GPExact::GPExact(GPHyperparams hp, Backend backend, Solver solver)
     : hp_(hp), backend_(backend), solver_(solver) {}
+
+GPExact::~GPExact() = default;
+GPExact::GPExact(GPExact&&) noexcept = default;
+GPExact& GPExact::operator=(GPExact&&) noexcept = default;
 
 GPExact::GPExact(std::shared_ptr<Kernel> kernel,
                  std::shared_ptr<MeanFunction> mean,
@@ -52,6 +59,9 @@ Backend GPExact::effective_backend() const {
 }
 
 Tensor GPExact::matvec_impl(const Tensor& v) const {
+    if (ski_data_) {
+        return ski_data_->matvec(v);
+    }
     if (matrix_free_) {
 #ifdef LIGHTGP_HAS_METAL
         if (effective_backend() == Backend::Metal) {
@@ -69,11 +79,66 @@ Tensor GPExact::matvec_impl(const Tensor& v) const {
     return K_y_.matmul(v);
 }
 
+namespace {
+
+// Build a Kernel object for the SKI Toeplitz column when only the legacy
+// (GPHyperparams) API is in use. The returned shared_ptr owns the temporary.
+std::shared_ptr<Kernel> kernel_from_legacy(const GPHyperparams& hp) {
+    switch (hp.kernel) {
+        case KernelType::RBF:
+            return std::make_shared<RBFKernel>(hp.length_scale, hp.signal_variance);
+        case KernelType::Matern12:
+            return std::make_shared<MaternKernel>(0.5f, hp.length_scale, hp.signal_variance);
+        case KernelType::Matern32:
+            return std::make_shared<MaternKernel>(1.5f, hp.length_scale, hp.signal_variance);
+        case KernelType::Matern52:
+            return std::make_shared<MaternKernel>(2.5f, hp.length_scale, hp.signal_variance);
+    }
+    return std::make_shared<RBFKernel>(hp.length_scale, hp.signal_variance);
+}
+
+}  // namespace
+
 bool GPExact::fit(const Tensor& X_train, const Tensor& y_train) {
     assert(X_train.rows() == y_train.rows());
     assert(y_train.cols() == 1);
     X_train_ = X_train;
     y_train_ = y_train;
+    ski_data_.reset();  // drop any stale SKI state from a previous fit.
+
+    // SKI solver: build the structured-kernel approximation up front, then drive
+    // CG through ski_data_->matvec(v). Works for both legacy and new-API
+    // constructions; the legacy path synthesises a temporary Kernel from `hp_`.
+    if (solver_ == Solver::SKI) {
+        std::shared_ptr<Kernel> kernel_for_ski;
+        if (kernel_) {
+            y_train_orig_ = y_train_;
+            Tensor mean_train = mean_->compute(X_train_);
+            Tensor y_centered(y_train_.rows(), 1);
+            for (std::size_t i = 0; i < y_train_.rows(); ++i)
+                y_centered(i, 0) = y_train_(i, 0) - mean_train(i, 0);
+            y_train_ = std::move(y_centered);
+            kernel_for_ski = kernel_;
+        } else {
+            kernel_for_ski = kernel_from_legacy(hp_);
+        }
+        const float sn2 = kernel_ ? noise_variance_ : hp_.noise_variance;
+        ski_data_ = std::make_unique<SKIData>(
+            build_ski(X_train_, *kernel_for_ski, sn2, /*points_per_dim=*/0,
+                      effective_backend()));
+        matrix_free_ = true;
+        K_y_ = Tensor();
+
+        auto matvec = [this](const Tensor& v) { return matvec_impl(v); };
+        Tensor alpha;
+        CGResult r = cg_solve_matvec(matvec, X_train_.rows(), y_train_, alpha,
+                                     /*tol=*/1e-5f, /*max_iter=*/500);
+        if (!r.converged) { fitted_ = false; return false; }
+        alpha_ = std::move(alpha);
+        jitter_used_ = sn2;
+        fitted_ = true;
+        return true;
+    }
 
     // New API: when constructed with a Kernel + MeanFunction object, use the
     // composable kernel hierarchy. Center y by the mean function before solving.
@@ -189,7 +254,7 @@ bool GPExact::predict(const Tensor& X_test, Tensor& mean_out, Tensor& var_out) c
     if (kernel_) prior_var_vec = kernel_->compute_diag(X_test);
     const float prior_var = hp_.signal_variance;  // legacy: k(x, x) = sf2 for RBF
 
-    if (solver_ == Solver::CG) {
+    if (solver_ == Solver::CG || solver_ == Solver::SKI) {
         // Hutchinson probe estimator for diag(K_star^T K_y^{-1} K_star).
         // For Rademacher z ∈ R^N: E[(K_star^T z) ⊙ (K_star^T K_y^{-1} z)] = the diagonal we want.
         // Cost: n_probes CG solves total, independent of M_test (vs M_test solves before).
@@ -244,8 +309,9 @@ float GPExact::log_marginal_likelihood() const {
     float yTa = 0.0f;
     for (std::size_t i = 0; i < n; ++i) yTa += y_train_(i, 0) * alpha_(i, 0);
     float log_det = 0.0f;
-    if (solver_ == Solver::CG) {
-        // SLQ via the same matvec used by CG (matrix-free on Metal, materialized on CPU).
+    if (solver_ == Solver::CG || solver_ == Solver::SKI) {
+        // SLQ via the same matvec used by CG / SKI (matrix-free on Metal/CUDA, or
+        // structured-Toeplitz for SKI; materialized for CG-CPU).
         auto matvec = [this](const Tensor& v) { return matvec_impl(v); };
         log_det = slq_log_det_cpu(matvec, n, /*n_probes=*/20, /*n_iters=*/30, /*seed=*/123);
     } else {
@@ -266,7 +332,7 @@ void GPExact::log_marginal_likelihood_grads(float& d_log_l,
                              hp_.length_scale, hp_.signal_variance,
                              grad_l, grad_sf2);
 
-    if (solver_ == Solver::CG) {
+    if (solver_ == Solver::CG || solver_ == Solver::SKI) {
         // Hutchinson trace estimator with Rademacher probes:
         // tr(K_y^{-1} M) ≈ (1/m) Σ z^T (M (K_y^{-1} z)).
         // One CG solve per probe; reuse the v = K_y^{-1} z across all three M_θ.

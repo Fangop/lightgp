@@ -101,6 +101,7 @@ PYBIND11_MODULE(_core, m) {
     py::enum_<lightgp::Solver>(m, "Solver")
         .value("Cholesky", lightgp::Solver::Cholesky)
         .value("CG", lightgp::Solver::CG)
+        .value("SKI", lightgp::Solver::SKI)
         .export_values();
 
     // --- Kernels ---
