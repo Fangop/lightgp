@@ -1,6 +1,11 @@
-===========
 Development
 ===========
 
-This section is under construction. Track progress at the project repo:
-https://github.com/Fangop/lightgp
+How LightGP is organized internally, and how to contribute.
+
+.. toctree::
+   :maxdepth: 1
+
+   contributing
+   architecture
+   adding_kernels

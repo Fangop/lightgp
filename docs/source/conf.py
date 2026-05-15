@@ -30,7 +30,14 @@ extensions = [
     "sphinx_copybutton",          # copy-button on code blocks
     "sphinx_design",              # cards, grids, tabs
     "myst_parser",                # Markdown support
+    "nbsphinx",                   # render Jupyter notebooks
 ]
+
+# nbsphinx: the tutorial notebooks are pre-executed by
+# docs/build_tutorial_notebooks.py and committed with outputs. Build is fast
+# and reproducible — Sphinx never runs Python code at HTML-build time.
+nbsphinx_execute = "never"
+nbsphinx_allow_errors = False
 
 source_suffix = {
     ".rst": "restructuredtext",
