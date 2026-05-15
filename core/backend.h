@@ -33,7 +33,14 @@ inline Backend default_backend() {
 ///   - Cholesky solver: Accelerate CPU + AMX wins at all measured sizes for low D.
 ///     At D >= 16 Metal kernel construction starts to dominate the savings; at
 ///     D >= 16 and N >= 2000 Metal wins net.
+///   - On Linux with CUDA: GPU wins from N ≥ ~1000 for Cholesky (cuSOLVER spotrf
+///     beats OpenBLAS spotrf by 100×+ past N=2048) and SKI / CG are always GPU.
 inline Backend resolve_auto_backend(std::size_t n, std::size_t d, Solver solver) {
+    if (has_cuda) {
+        if (solver != Solver::Cholesky) return Backend::CUDA;
+        if (n >= 1024) return Backend::CUDA;
+        return Backend::CPU;
+    }
     if (!has_metal) return Backend::CPU;
     if (solver == Solver::CG && n > 2000) return Backend::Metal;
     if (d >= 16 && n >= 2000) return Backend::Metal;
