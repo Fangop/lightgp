@@ -1,0 +1,26 @@
+/* LightGP docs: small tweaks on top of sphinx_rtd_theme */
+
+:root {
+    --lightgp-primary: #2563EB;
+    --lightgp-primary-light: #93C5FD;
+}
+
+.wy-side-nav-search {
+    background-color: #1F2937;
+}
+
+.wy-nav-content {
+    max-width: 960px;
+}
+
+code.literal {
+    color: var(--lightgp-primary);
+    border: none;
+    background: transparent;
+    padding: 0;
+}
+
+/* Grid cards (sphinx-design) — tighter spacing */
+.sd-card {
+    border-radius: 6px;
+}
