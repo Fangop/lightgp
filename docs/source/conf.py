@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "python"))
 
 # -- Project information -----------------------------------------------------
 project = "LightGP"
-author = "Fang Yu Hsueh"
-copyright = "2026, Fang Yu Hsueh"
+author = "YuHsueh Fang"
+copyright = "2026, YuHsueh Fang"
 release = "0.1.0"
 version = "0.1"
 
