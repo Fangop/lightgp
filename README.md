@@ -4,6 +4,7 @@
 Apple Metal + Accelerate (AMX) on macOS; CUDA backend in progress. No PyTorch. No TensorFlow. Just numpy.
 
 [![CI](https://github.com/Fangop/lightgp/actions/workflows/ci.yml/badge.svg)](https://github.com/Fangop/lightgp/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-fangop.github.io%2Flightgp-2563EB)](https://fangop.github.io/lightgp/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/lightgp.svg)](https://pypi.org/project/lightgp/)
 
