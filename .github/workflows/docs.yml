@@ -24,7 +24,7 @@ jobs:
       - name: Install Sphinx
         run: |
           python -m pip install --upgrade pip
-          pip install sphinx sphinx-rtd-theme sphinx-copybutton myst-parser sphinx-design
+          pip install sphinx sphinx-rtd-theme sphinx-copybutton myst-parser sphinx-design nbsphinx
       - name: Build HTML
         run: |
           cd docs
