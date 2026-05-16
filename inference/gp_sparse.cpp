@@ -12,6 +12,11 @@
 #include "../core/dispatch.h"
 #include "../solvers/cpu/cholesky_cpu.h"
 
+#ifdef LIGHTGP_HAS_CUDA
+#include "../kernels/cuda/cuda_context.h"
+#include "../kernels/cuda/gemm_cuda.h"
+#endif
+
 namespace lightgp {
 
 namespace {
@@ -145,8 +150,22 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
         }
     }
     prof.tick("K_fu_scaled (CPU loop)");
-    Tensor outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
-    prof.tick("K_fu^T K_fu (CPU BLAS)");
+
+    // K_fu^T K_fu (M x M). At N=50k M=200 this single multiply was the dominant
+    // cost: 481 ms on OpenBLAS with the 40 MB explicit transpose buffer
+    // (memory-bandwidth bound — see report.md). gemm_AtA_cuda does it via cuBLAS
+    // with op_B=T on the same device buffer; no host transpose copy needed.
+    Tensor outer;
+#ifdef LIGHTGP_HAS_CUDA
+    if (effective_backend() == Backend::CUDA && CudaContext::instance().available()) {
+        outer = gemm_AtA_cuda(K_fu_scaled);
+    } else {
+        outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
+    }
+#else
+    outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
+#endif
+    prof.tick("K_fu^T K_fu (gemm_AtA)");
     Tensor Sigma = K_uu.add(outer);
 
     if (!dispatch_cholesky_with_jitter(Sigma, L_Sigma_, jit, effective_backend())) {
