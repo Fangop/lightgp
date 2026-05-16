@@ -103,7 +103,15 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
     Profiler prof;
     X_train_ = X_train;
     y_train_ = y_train;
-    Z_ = farthest_point_sample(X_train, M, seed);
+    // Skip farthest-point sampling whenever Z already has the requested shape
+    // (cold fit starts with Z empty so still runs it; optimize() / optimize_all()
+    // re-fit loops reuse the same inducing set). FPS is O(M N D) — ~45 ms / call
+    // at N=50k, M=200. Construct a new GPSparse, or reset Z manually, to force a
+    // resample.
+    const bool reuse_Z = Z_.rows() == M && Z_.cols() == X_train_.cols();
+    if (!reuse_Z) {
+        Z_ = farthest_point_sample(X_train, M, seed);
+    }
     prof.tick("farthest_point_sample");
 
     const std::size_t N = X_train_.rows();
