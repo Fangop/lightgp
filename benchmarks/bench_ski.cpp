@@ -99,8 +99,13 @@ int main(int argc, char** argv) {
         }
     }
 
-    // ---- SKI end-to-end fit + predict --------------------------------------
-    for (int N : {10000, 50000, 100000, 200000}) {
+    // ---- Section H: SKI end-to-end fit + predict, CPU vs CUDA ----------------
+    // 1D heuristic gives M = N grid points, so CPU SKI through kron_toeplitz_matvec_cpu
+    // is O(N^2) per CG matvec; the Hutchinson 30-probe variance estimator at predict
+    // time multiplies that by ~30 × 100 = 3000 matvecs, putting even N=10000 past the
+    // 60s/configuration budget. Skip CPU for all section H sizes and rely on the
+    // CPU dense Toeplitz vs SKI cross-check in tests/test_ski.cpp for correctness.
+    for (int N : {10000, 50000, 100000, 200000, 500000}) {
         Tensor X = make_X_1d(N, 0xACE + N);
         Tensor y = make_y_sin(X);
         Tensor X_test = make_X_1d(128, 0xBADu + N);
@@ -110,14 +115,27 @@ int main(int argc, char** argv) {
         hp.signal_variance = 1.0f;
         hp.noise_variance = 1e-2f;
 
-        const double ski_ms = bench::median_ms(runs, [&]() {
-            GPExact g(hp, backend, Solver::SKI);
-            g.fit(X, y);
-            Tensor m, v; g.predict(X_test, m, v);
-        });
-        emit("gpexact_ski", backend == Backend::CUDA ? "cuda" : "cpu",
-             N, /*M=*/-1, ski_ms, runs);
+        std::printf("{\"section\":\"H\",\"method\":\"gpexact_ski_e2e\",\"device\":\"cpu\","
+                    "\"N\":%d,\"D\":1,\"M\":null,\"total_ms\":-1.0,\"runs\":0,"
+                    "\"version\":\"lightgp/ski\","
+                    "\"notes\":\"skipped: CPU Toeplitz matvec is O(M^2) with M=N for D=1; "
+                    "Hutchinson predict pushes median-of-5 past 60s budget\"}\n", N);
+        std::fflush(stdout);
 
+        if (backend == Backend::CUDA) {
+            const double cuda_ms = bench::median_ms(runs, [&]() {
+                GPExact g(hp, Backend::CUDA, Solver::SKI);
+                g.fit(X, y);
+                Tensor m, v; g.predict(X_test, m, v);
+            });
+            std::printf("{\"section\":\"H\",\"method\":\"gpexact_ski_e2e\",\"device\":\"cuda\","
+                        "\"N\":%d,\"D\":1,\"M\":null,\"total_ms\":%.4f,\"runs\":%d,"
+                        "\"version\":\"lightgp/ski\"}\n", N, cuda_ms, runs);
+            std::fflush(stdout);
+        }
+
+        // Optional comparison: sparse VFE at the same N. Keep emitting with the old
+        // (legacy "method") schema for the standalone bench_ski summary.
         if (N <= 50000) {
             const double sparse_ms = bench::median_ms(runs, [&]() {
                 GPSparseHyperparams shp;

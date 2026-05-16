@@ -153,12 +153,29 @@ bool GPExact::fit(const Tensor& X_train, const Tensor& y_train) {
         // Store the centered targets so predict() can add the mean back symmetrically.
         y_train_ = std::move(y_centered);
 
-        Tensor K_new = kernel_->compute(X_train_, X_train_, effective_backend());
-        K_new.add_jitter(noise_variance_);
         if (solver_ == Solver::CG) {
-            // Composite-kernel CG: materialize K (no matrix-free path yet for composite).
-            K_y_ = std::move(K_new);
-            matrix_free_ = false;
+            // If the kernel is a plain RBFKernel and we're on a backend that has a
+            // matrix-free RBF matvec (Metal / CUDA), avoid materialising K. This is
+            // what the legacy GPHyperparams path does — we extend the parity to the
+            // new-API path so Python users get the same scalability.
+            auto* rbf = dynamic_cast<RBFKernel*>(kernel_.get());
+            const bool gpu_matrix_free =
+                rbf != nullptr &&
+                (effective_backend() == Backend::Metal || effective_backend() == Backend::CUDA);
+            if (gpu_matrix_free) {
+                // Mirror kernel params into hp_ so matvec_impl can call rbf_matvec_*().
+                hp_.length_scale = rbf->length_scale();
+                hp_.signal_variance = rbf->signal_variance();
+                hp_.noise_variance = noise_variance_;
+                matrix_free_ = true;
+                K_y_ = Tensor();
+            } else {
+                // Composite / unsupported-backend kernels still materialise K.
+                Tensor K_new = kernel_->compute(X_train_, X_train_, effective_backend());
+                K_new.add_jitter(noise_variance_);
+                K_y_ = std::move(K_new);
+                matrix_free_ = false;
+            }
             auto matvec = [this](const Tensor& v) { return matvec_impl(v); };
             Tensor alpha;
             CGResult r = cg_solve_matvec(matvec, X_train_.rows(), y_train_, alpha,
@@ -169,6 +186,8 @@ bool GPExact::fit(const Tensor& X_train, const Tensor& y_train) {
             fitted_ = true;
             return true;
         }
+        Tensor K_new = kernel_->compute(X_train_, X_train_, effective_backend());
+        K_new.add_jitter(noise_variance_);
         float jit_new = 0.0f;
         if (!dispatch_cholesky_with_jitter(K_new, L_, jit_new, effective_backend())) {
             fitted_ = false; return false;
