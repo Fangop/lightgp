@@ -1,8 +1,10 @@
 #include "gp_sparse.h"
 
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <random>
 #include <vector>
@@ -10,11 +12,36 @@
 #include "../core/dispatch.h"
 #include "../solvers/cpu/cholesky_cpu.h"
 
+#ifdef LIGHTGP_HAS_CUDA
+#include "../kernels/cuda/cuda_context.h"
+#include "../kernels/cuda/gemm_cuda.h"
+#endif
+
 namespace lightgp {
 
 namespace {
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kInducingJitter = 1e-6f;
+
+/// Profile-print helper for GPSparse::fit. Enabled when LIGHTGP_PROFILE_SPARSE=1
+/// is set in the environment. Each call prints `[gpsparse] <label>: <ms>` and resets
+/// the timer. Resolution: std::chrono::steady_clock (typically 1us on Linux).
+class Profiler {
+public:
+    Profiler() : enabled_(std::getenv("LIGHTGP_PROFILE_SPARSE") != nullptr),
+                 start_(clock::now()) {}
+    void tick(const char* label) {
+        if (!enabled_) return;
+        const auto now = clock::now();
+        const double ms = std::chrono::duration<double, std::milli>(now - start_).count();
+        std::fprintf(stderr, "[gpsparse] %-26s %7.2f ms\n", label, ms);
+        start_ = now;
+    }
+private:
+    using clock = std::chrono::steady_clock;
+    bool enabled_;
+    clock::time_point start_;
+};
 
 // Farthest-point sampling: deterministic given seed. Returns M selected rows of X.
 Tensor farthest_point_sample(const Tensor& X, std::size_t M, std::uint64_t seed) {
@@ -73,9 +100,19 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
     assert(y_train.cols() == 1);
     assert(M > 0 && M <= X_train.rows());
 
+    Profiler prof;
     X_train_ = X_train;
     y_train_ = y_train;
-    Z_ = farthest_point_sample(X_train, M, seed);
+    // Skip farthest-point sampling whenever Z already has the requested shape
+    // (cold fit starts with Z empty so still runs it; optimize() / optimize_all()
+    // re-fit loops reuse the same inducing set). FPS is O(M N D) — ~45 ms / call
+    // at N=50k, M=200. Construct a new GPSparse, or reset Z manually, to force a
+    // resample.
+    const bool reuse_Z = Z_.rows() == M && Z_.cols() == X_train_.cols();
+    if (!reuse_Z) {
+        Z_ = farthest_point_sample(X_train, M, seed);
+    }
+    prof.tick("farthest_point_sample");
 
     const std::size_t N = X_train_.rows();
 
@@ -83,19 +120,23 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
     Tensor K_uu = dispatch_kernel(Z_, Z_,
                                   hp_.length_scale, hp_.signal_variance,
                                   hp_.kernel, effective_backend());
+    prof.tick("K_uu kernel");
     K_uu.add_jitter(kInducingJitter);
     K_uf_ = dispatch_kernel(Z_, X_train_,
                             hp_.length_scale, hp_.signal_variance,
                             hp_.kernel, effective_backend());
+    prof.tick("K_uf kernel");
 
     float jit = 0.0f;
     if (!dispatch_cholesky_with_jitter(K_uu, L_uu_, jit, effective_backend())) {
         fitted_ = false;
         return false;
     }
+    prof.tick("L_uu cholesky");
 
     // V = L_uu^{-1} K_uf   →   Q_ff_diag(i) = ||V(:, i)||^2.
     Tensor V = dispatch_forward_solve(L_uu_, K_uf_, effective_backend());
+    prof.tick("V = L_uu^-1 K_uf");
 
     Lambda_ = Tensor(N, 1);
     for (std::size_t i = 0; i < N; ++i) {
@@ -105,6 +146,7 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
         if (lam < hp_.noise_variance) lam = hp_.noise_variance;  // numerical safety
         Lambda_(i, 0) = lam;
     }
+    prof.tick("Lambda (CPU loop)");
 
     // Σ = K_uu + K_uf Λ^{-1} K_fu = K_uu + (Λ^{-1/2} K_fu)^T (Λ^{-1/2} K_fu).
     // Form K_fu_scaled = Λ^{-1/2} K_fu (N x M) by row-scaling.
@@ -115,19 +157,37 @@ bool GPSparse::fit(const Tensor& X_train, const Tensor& y_train,
             K_fu_scaled(i, m) = K_uf_(m, i) * s;
         }
     }
-    Tensor outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
+    prof.tick("K_fu_scaled (CPU loop)");
+
+    // K_fu^T K_fu (M x M). At N=50k M=200 this single multiply was the dominant
+    // cost: 481 ms on OpenBLAS with the 40 MB explicit transpose buffer
+    // (memory-bandwidth bound — see report.md). gemm_AtA_cuda does it via cuBLAS
+    // with op_B=T on the same device buffer; no host transpose copy needed.
+    Tensor outer;
+#ifdef LIGHTGP_HAS_CUDA
+    if (effective_backend() == Backend::CUDA && CudaContext::instance().available()) {
+        outer = gemm_AtA_cuda(K_fu_scaled);
+    } else {
+        outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
+    }
+#else
+    outer = K_fu_scaled.transpose().matmul(K_fu_scaled);
+#endif
+    prof.tick("K_fu^T K_fu (gemm_AtA)");
     Tensor Sigma = K_uu.add(outer);
 
     if (!dispatch_cholesky_with_jitter(Sigma, L_Sigma_, jit, effective_backend())) {
         fitted_ = false;
         return false;
     }
+    prof.tick("L_Sigma cholesky");
 
     // α = Σ^{-1} K_uf Λ^{-1} y.
     Tensor y_scaled(N, 1);
     for (std::size_t i = 0; i < N; ++i) y_scaled(i, 0) = y_train_(i, 0) / Lambda_(i, 0);
     Tensor Kuf_y = K_uf_.matmul(y_scaled);
     alpha_ = dispatch_cholesky_solve(L_Sigma_, Kuf_y, effective_backend());
+    prof.tick("alpha solve");
 
     fitted_ = true;
     return true;
