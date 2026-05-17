@@ -1,7 +1,7 @@
 # LightGP
 
 **Lightweight Gaussian Process inference in C++ with Python bindings.**
-Apple Metal + Accelerate (AMX) on macOS; CUDA + OpenBLAS on Linux. No PyTorch. No TensorFlow. Just numpy.
+Apple Metal + Accelerate (AMX) on macOS; CUDA + OpenBLAS on Linux. Pure-C++17 core, no deep-learning framework runtime — designed to complement [GPyTorch](https://gpytorch.ai/) for projects that need GP regression with a small dependency footprint or direct C++ embedding.
 
 [![CI](https://github.com/Fangop/lightgp/actions/workflows/ci.yml/badge.svg)](https://github.com/Fangop/lightgp/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-fangop.github.io%2Flightgp-2563EB)](https://fangop.github.io/lightgp/)
@@ -60,39 +60,69 @@ model.fit(X_big, y_big, num_inducing=200)  # scales to N=50000 in ~100 ms
 Full docs at **https://fangop.github.io/lightgp/** — getting started, six tutorials,
 complete API reference, benchmarks gallery, theory pages, and a developer guide.
 
+## Where LightGP fits
+
+[GPyTorch](https://gpytorch.ai/) is the canonical Python GP library and offers a
+much broader set of models — deep GPs, variational families beyond VFE, spectral
+mixture kernels, multi-output likelihoods, and a mature autograd-driven hyperparameter
+pipeline built on PyTorch. If you already live in the PyTorch ecosystem, GPyTorch is
+almost certainly the right tool.
+
+LightGP targets a narrower slice: GP regression with a minimal binary footprint,
+shipping as a single static C++ library and a numpy-only Python wheel. It implements
+the four most common inference paths (exact Cholesky, matrix-free CG, sparse VFE,
+SKI/KISS-GP) and is designed to be embedded in C++ applications — robotics stacks,
+mobile apps, simulators, game engines — where pulling in a deep-learning framework
+isn't an option.
+
+The two libraries call the same underlying BLAS on each platform (Apple Accelerate
+on macOS, OpenBLAS / cuBLAS on Linux), so the benchmark numbers below mostly reflect
+dispatch-layer overhead rather than fundamental algorithmic differences.
+
 ## Features
 
-| Feature                                | lightgp | GPyTorch          |
-|----------------------------------------|--------|-------------------|
-| Exact GP (Cholesky)                    | ✅     | ✅                |
-| Matrix-free CG-based GP                | ✅     | ✅                |
-| Sparse GP (Titsias VFE)                | ✅     | ✅                |
-| Kernel composition (`+`, `*`, `Scale`) | ✅     | ✅                |
-| RBF, Matérn-{½,3/2,5/2}, Periodic, Linear | ✅  | ✅ (+ more)       |
-| Mean functions (Zero, Constant, Linear) | ✅    | ✅                |
-| Zero runtime dependencies              | ✅     | ❌ (PyTorch)      |
-| Apple Metal backend                    | ✅     | partial (MPS)     |
-| Apple Accelerate / AMX                 | ✅     | ✅ (via PyTorch)  |
-| CUDA backend                           | ✅     | ✅                |
-| `pip install`                          | ✅     | ✅                |
-| Embeddable in pure C++ projects        | ✅     | ❌                |
-| Matrix-free $K\mathbf v$ on Metal      | ✅     | ❌                |
+| Aspect | LightGP | GPyTorch |
+|---|---|---|
+| Inference paths | Exact / CG / Sparse VFE / SKI | Exact / CG / Sparse + variational families / SKI / deep GPs |
+| Kernel families | RBF, Matérn-{½,3/2,5/2}, Periodic, Linear (composable) | The above + spectral mixture, polynomial, RFF, and more |
+| Hyperparameter optimization | Finite-diff Adam; analytical grads for legacy single-kernel API | Full PyTorch autograd |
+| Mean functions | Zero, Constant, Linear | All of the above + custom modules |
+| Runtime dependencies | numpy (Python); none (C++) | PyTorch |
+| CPU backend | Apple Accelerate / AMX (macOS), OpenBLAS / LAPACK (Linux) | Same Accelerate / MKL / OpenBLAS via PyTorch |
+| Apple Metal | Native compute shaders + matrix-free Kv | Partial (PyTorch MPS) |
+| NVIDIA CUDA | cuBLAS / cuSOLVER / cuFFT + matrix-free Kv | Yes |
+| Numerical precision | float32 | float32 / float64 |
+| Likelihoods | Gaussian | Gaussian + non-Gaussian (variational) |
+| Embeddable in pure C++ projects | Yes | No |
+| `pip install` | Yes | Yes |
 
-## Benchmarks (Apple M4, fp32, median of 3 runs)
+## Benchmarks
 
-End-to-end fit + predict against GPyTorch on the same hardware:
+End-to-end fit + predict on Apple M4 (fp32, median of 3 runs):
 
-| Config                            | lightgp CPU | lightgp Metal | GPyTorch CPU | GPyTorch MPS | lightgp vs GPyTorch (best) |
-|-----------------------------------|-----------|--------------|--------------|--------------|---------------------------|
-| Exact RBF, N=2048, D=4            | **44 ms** | 195 ms       | 89 ms        | (gap*)       | **2.0× faster**           |
-| Exact Matérn-5/2, N=2048, D=4     | **42 ms** | 191 ms       | 106 ms       | (gap*)       | **2.5× faster**           |
-| Sparse RBF, N=10000, M=200        | **25 ms** | 42 ms        | 42 ms        | 69 ms        | **1.7× faster**           |
-| Sparse RBF, N=50000, M=200        | **114 ms**| 156 ms       | 196 ms       | **98 ms**    | 1.16× slower (vs MPS)     |
-| Matrix-free $K\mathbf v$, N=20000 | n/a       | **22 ms**    | n/a          | (no equiv)   | **60× over explicit**     |
+| Config | LightGP CPU | LightGP Metal | GPyTorch CPU | GPyTorch MPS |
+|---|--:|--:|--:|--:|
+| Exact RBF, N=2048, D=4 | 44 ms | 195 ms | 89 ms | (gap*) |
+| Exact Matérn-5/2, N=2048, D=4 | 42 ms | 191 ms | 106 ms | (gap*) |
+| Sparse RBF, N=10000, M=200 | 25 ms | 42 ms | 42 ms | 69 ms |
+| Sparse RBF, N=50000, M=200 | 114 ms | 156 ms | 196 ms | 98 ms |
+| Matrix-free $K\mathbf v$, N=20000 | n/a | 22 ms | n/a | (no equiv) |
 
-*GPyTorch MPS falls back to CPU for exact-GP variance because `aten::_linalg_eigh.eigenvalues` is not implemented on MPS.
+*GPyTorch MPS falls back to CPU for exact-GP variance because
+`aten::_linalg_eigh.eigenvalues` is not yet available on MPS — this is a PyTorch
+backend gap, not a GPyTorch design choice.
 
-lightgp CPU beats GPyTorch CPU at every measured size — same Accelerate / AMX underneath, less Python dispatch overhead. The matrix-free $K\mathbf v$ path is unique to lightgp on Apple Silicon and enables CG-based GP inference at N=50000+ with O(N) memory (vs O(N²) for the explicit kernel matrix).
+Both libraries reach the same Accelerate / AMX sgemm and spotrf underneath. The
+runtime difference at modest N (exact GP under N≈4 k) comes from dispatch-layer
+overhead: LightGP calls BLAS directly from C++ while GPyTorch traverses Python +
+PyTorch's dispatcher. At larger sparse-GP sizes GPyTorch's MPS pipeline can
+overtake LightGP CPU — see the [linked benchmarks page](https://fangop.github.io/lightgp/benchmarks/)
+for the full table including N≥50 k and the Linux RTX 3060 numbers.
+
+The matrix-free $K\mathbf v$ kernel — used by `Solver::CG` to keep memory at O(N)
+rather than O(N²) — is implemented as a custom Metal compute shader. GPyTorch's
+MPS backend can't currently express this fusion because PyTorch doesn't yet
+expose user-defined Metal kernels.
 
 ## C++ usage (embedding without Python)
 

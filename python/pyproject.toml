@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "lightgp"
 version = "0.1.0"
-description = "lightgp: Lightweight Gaussian Process inference — C++/Metal/Accelerate with Python bindings"
+description = "Lightweight Gaussian Process inference in C++17 with Python bindings — Apple Metal / Accelerate on macOS and NVIDIA CUDA / OpenBLAS on Linux. A complement to GPyTorch for projects that need GP regression with a small dependency footprint or direct C++ embedding."
 readme = "../README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
