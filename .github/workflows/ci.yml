@@ -1,10 +1,16 @@
 name: CI
 
+# Tag-triggered + manual only. macOS-14 minutes are metered (10x Linux rate)
+# even on public repos, so running this on every push exhausts the monthly
+# allowance fast. Use `git tag v0.x.y` / `milestone-*` or the Actions UI
+# "Run workflow" button when you want validation. Self-hosted CUDA CI lives
+# in ci-cuda.yml and shares the same trigger model.
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'milestone-*'
+      - 'v*'
+  workflow_dispatch: {}
 
 jobs:
   # ---- macOS: Metal + Apple Accelerate path ----
