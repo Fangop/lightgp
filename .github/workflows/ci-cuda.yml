@@ -1,0 +1,117 @@
+name: CUDA CI
+
+# Triggered ONLY on milestone or release tags, plus manual dispatch.
+# Regular pushes / PRs are not exercised here — the CPU jobs in ci.yml
+# cover those. CUDA needs a self-hosted runner on a host with an NVIDIA
+# GPU + CUDA toolkit; see the setup notes at the bottom of this file.
+on:
+  push:
+    tags:
+      - 'milestone-*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      run_benchmarks:
+        description: 'Also run the full benchmark suite (slow)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  cuda-tests:
+    runs-on: [self-hosted, gpu]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check CUDA toolchain
+        run: |
+          nvidia-smi
+          nvcc --version
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libopenblas-dev liblapack-dev cmake
+
+      - name: C++ build (CUDA + OpenBLAS)
+        env:
+          LIGHTGP_NO_METAL: '1'
+          LIGHTGP_ENABLE_CUDA: '1'
+        run: ./build.sh
+
+      - name: C++ tests (CUDA + SKI suites included)
+        run: ./build/run_tests
+
+      - name: Python bindings + tests
+        env:
+          LIGHTGP_NO_METAL: '1'
+          LIGHTGP_ENABLE_CUDA: '1'
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pybind11 numpy pytest
+          ./python/build_python.sh
+          PYTHONPATH=python python3 -m pytest python/tests -v
+
+      - name: Backend agreement smoke check
+        run: |
+          source .venv/bin/activate
+          PYTHONPATH=python python3 - <<'PY'
+          import numpy as np
+          import lightgp as gp
+
+          rng = np.random.default_rng(42)
+          X = rng.standard_normal((500, 4)).astype(np.float32)
+          y = np.sin(X[:, 0]).astype(np.float32)
+          X_test = rng.standard_normal((50, 4)).astype(np.float32)
+
+          mc = gp.GPExact(gp.RBF(), backend=gp.Backend.CPU)
+          mg = gp.GPExact(gp.RBF(), backend=gp.Backend.CUDA)
+          mc.fit(X, y); mg.fit(X, y)
+          pc, pg = mc.predict(X_test), mg.predict(X_test)
+          d_mean = float(np.max(np.abs(pc["mean"] - pg["mean"])))
+          d_var  = float(np.max(np.abs(pc["var"]  - pg["var"])))
+          d = max(d_mean, d_var)
+          assert d < 1e-3, f"backend agreement failed (max diff {d:.2e})"
+          print(f"backend agreement OK (max diff {d:.2e})")
+          PY
+
+      - name: Benchmarks (milestone tags or manual opt-in)
+        if: startsWith(github.ref, 'refs/tags/milestone-') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_benchmarks == 'true')
+        run: |
+          mkdir -p artifacts
+          ./build/bench_rbf       | tee artifacts/bench_rbf.txt
+          ./build/bench_cholesky  | tee artifacts/bench_cholesky.txt
+          ./build/bench_matvec    | tee artifacts/bench_matvec.txt
+          ./build/bench_gp_e2e    | tee artifacts/bench_gp_e2e.txt
+          ./build/bench_sparse    | tee artifacts/bench_sparse.txt
+          ./build/bench_cuda  5   | tee artifacts/bench_cuda.jsonl
+          ./build/bench_ski   5   | tee artifacts/bench_ski.jsonl
+          ./build/bench_datasets  | tee artifacts/bench_datasets.txt
+
+      - name: Upload benchmark artifacts
+        if: startsWith(github.ref, 'refs/tags/milestone-') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_benchmarks == 'true')
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-benchmarks-${{ github.ref_name }}
+          path: artifacts/
+          retention-days: 90
+
+# ----------------------------------------------------------------------------
+# Self-hosted runner setup (one-time, on the GPU box):
+#
+#   mkdir ~/actions-runner && cd ~/actions-runner
+#   curl -o runner.tar.gz -L \
+#     https://github.com/actions/runner/releases/latest/download/actions-runner-linux-x64-2.XXX.tar.gz
+#   tar xzf runner.tar.gz
+#   ./config.sh --url https://github.com/<owner>/lightgp \
+#               --token <REGISTRATION_TOKEN> \
+#               --labels gpu
+#   sudo ./svc.sh install && sudo ./svc.sh start
+#
+# Trigger the workflow with either:
+#   git tag milestone-perf-cuda && git push origin milestone-perf-cuda
+#   git tag v0.1.0              && git push origin v0.1.0
+#   (or use the "Run workflow" button in the GitHub Actions UI)
+# ----------------------------------------------------------------------------
