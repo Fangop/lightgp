@@ -8,8 +8,14 @@ version = "0.1.0"
 description = "Lightweight Gaussian Process inference in C++17 with Python bindings — Apple Metal / Accelerate on macOS and NVIDIA CUDA / OpenBLAS on Linux. A complement to GPyTorch for projects that need GP regression with a small dependency footprint or direct C++ embedding."
 readme = "../README.md"
 license = {text = "MIT"}
+authors = [{name = "Yu-Hsueh Fang"}]
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.20"]
+
+[project.urls]
+Homepage = "https://github.com/Fangop/lightgp"
+Documentation = "https://fangop.github.io/lightgp/"
+Issues = "https://github.com/Fangop/lightgp/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
