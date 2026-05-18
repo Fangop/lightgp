@@ -25,6 +25,7 @@ env/
 
 # Benchmark / test outputs
 *.json
+*.jsonl
 !benchmarks/python/*.json.example
 
 # Editor / OS junk
@@ -41,3 +42,6 @@ task*.md
 
 # Local Claude Code working state
 .claude/
+
+# Stray /tmp paths if ever symlinked into the tree
+/tmp/
