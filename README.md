@@ -1,7 +1,7 @@
 # LightGP
 
 **Lightweight Gaussian Process inference in C++ with Python bindings.**
-Apple Metal + Accelerate (AMX) on macOS; CUDA + OpenBLAS on Linux. No PyTorch. No TensorFlow. Just numpy.
+Apple Metal + Accelerate (AMX) on macOS; NVIDIA CUDA + OpenBLAS on Linux. NumPy-first Python API with no deep-learning framework dependency.
 
 [![CI](https://github.com/Fangop/lightgp/actions/workflows/ci.yml/badge.svg)](https://github.com/Fangop/lightgp/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-fangop.github.io%2Flightgp-2563EB)](https://fangop.github.io/lightgp/)
@@ -13,16 +13,15 @@ Apple Metal + Accelerate (AMX) on macOS; CUDA + OpenBLAS on Linux. No PyTorch. N
 ## Install
 
 ```bash
-pip install lightgp           # binary wheels for macOS-arm64 and manylinux-x86_64
-```
-
-From source (requires a C++17 compiler):
-
-```bash
 git clone https://github.com/Fangop/lightgp.git
 cd lightgp/python
 pip install -e ".[test]"
 ```
+
+LightGP builds from source via ``scikit-build-core``. On macOS-arm64 the
+build auto-detects Apple Accelerate and Metal; on Linux it auto-detects
+OpenBLAS / LAPACK and, when ``LIGHTGP_ENABLE_CUDA=1`` is set, CUDA. A
+C++17 compiler is required.
 
 ## Quick start
 
@@ -78,9 +77,9 @@ complete API reference, benchmarks gallery, theory pages, and a developer guide.
   solver — users don't have to think about hardware crossover points.
 - **Pure-C++17 core** — embeddable in iOS apps, robotics stacks, simulators, and
   game engines without bringing in a deep-learning framework.
-- **Python bindings via pybind11** — `pip install lightgp` ships prebuilt wheels
-  with the right backend per platform (Metal on macOS-arm64, CUDA on
-  manylinux-x86_64) and exposes the full API with NumPy interop.
+- **Python bindings via pybind11** — `scikit-build-core` builds the right
+  backend per platform from source (Metal on macOS-arm64, CUDA on Linux
+  when `LIGHTGP_ENABLE_CUDA=1`) and exposes the full API with NumPy interop.
 
 ## Benchmarks
 
@@ -91,11 +90,11 @@ End-to-end GP fit + predict against GPyTorch on identical hardware
 
 | Config | LightGP CPU | LightGP Metal | GPyTorch CPU | GPyTorch MPS | LightGP best vs GPyTorch best |
 |---|--:|--:|--:|--:|--:|
-| Exact RBF, N=2048 | **44 ms** | 195 ms | 89 ms | (gap*) | **2.0× faster** |
+| Exact RBF, N=2048 | **23.6 ms** | 195 ms | 89 ms | (gap*) | **3.8× faster** |
 | Exact Matérn-5/2, N=2048 | **42 ms** | 191 ms | 106 ms | (gap*) | **2.5× faster** |
-| Sparse RBF, N=10k, M=200 | **25 ms** | 42 ms | 42 ms | 69 ms | **1.7× faster** |
-| Sparse RBF, N=50k, M=200 | **114 ms** | 156 ms | 196 ms | 98 ms | **1.7× faster vs CPU**; 1.16× behind MPS |
-| Matrix-free $K\mathbf v$, N=20k | n/a | **22 ms** | n/a | (no equiv) | **60× over explicit** |
+| Sparse RBF, N=10k, M=200 | **18.5 ms** | 42 ms | 42 ms | 69 ms | **2.3× faster** |
+| Sparse RBF, N=50k, M=200 | **97.4 ms** | 156 ms | 196 ms | 98 ms | **2.0× faster vs CPU**; on par with MPS |
+| Matrix-free $K\mathbf v$, N=20k | n/a | **22 ms** | n/a | (no equiv) | **32× over explicit** |
 
 *GPyTorch MPS falls back to CPU for exact-GP variance because
 `aten::_linalg_eigh.eigenvalues` is not yet implemented on PyTorch's MPS
@@ -105,9 +104,9 @@ backend — the gap is in PyTorch itself, not in GPyTorch.
 
 | Config | LightGP CUDA | GPyTorch CUDA | LightGP advantage |
 |---|--:|--:|--:|
-| Exact RBF, N=512 | **2.4 ms** | 10.3 ms | **4.3×** |
-| Exact RBF, N=1024 | **7.5 ms** | 35.4 ms | **4.7×** |
-| Exact RBF, N=2048 | **41.5 ms** | 63.0 ms | **1.5×** |
+| Exact RBF, N=512 | **2.0 ms** | 10.3 ms | **5.2×** |
+| Exact RBF, N=1024 | **5.3 ms** | 35.4 ms | **6.7×** |
+| Exact RBF, N=2048 | **28.0 ms** | 63.0 ms | **2.3×** |
 | Exact RBF, N=4096 | 152 ms | **111 ms** | 0.7× (GPyTorch wins) |
 | Sparse RBF, N=1000, M=100 (warm) | **0.9 ms** | 13.6 ms | **15.3×** |
 | Sparse RBF, N=10k, M=200 (warm) | **13.7 ms** | 23.9 ms | **1.7×** |
@@ -183,7 +182,7 @@ gp_sp.fit(X_huge, y_huge, /*num_inducing=*/200);   // O(NM² + M³)
 
 ```bash
 ./build.sh
-./build/run_tests                       # 329,170 assertions across 15 test groups
+./build/run_tests                       # 853 test cases across the C++ suite
 ./build/basic_regression
 ./build/mauna_loa                       # kernel composition demo
 ./build/bench_paper                     # full benchmark suite, JSON-per-line stdout
@@ -192,8 +191,8 @@ gp_sp.fit(X_huge, y_huge, /*num_inducing=*/200);   // O(NM² + M³)
 ### Linux (CPU + optional CUDA)
 
 ```bash
-# CPU only (OpenBLAS / LAPACKE auto-detected if installed)
-LIGHTGP_NO_METAL=1 LIGHTGP_NO_ACCELERATE=1 ./build.sh
+# CPU only (OpenBLAS / LAPACK auto-detected if installed)
+./build.sh
 
 # With CUDA (requires nvcc + CUDA Toolkit)
 LIGHTGP_ENABLE_CUDA=1 ./build.sh
@@ -204,7 +203,7 @@ LIGHTGP_ENABLE_CUDA=1 ./build.sh
 Install OpenBLAS / LAPACK first to get the fast CPU path:
 
 ```bash
-sudo apt install libopenblas-dev liblapacke-dev   # Debian / Ubuntu
+sudo apt install libopenblas-dev liblapack-dev   # Debian / Ubuntu
 ```
 
 The CUDA backend wires through ``Backend::CUDA`` and covers cuBLAS GEMM,
@@ -242,8 +241,8 @@ lightgp/
 │   └── metal/
 ├── inference/           GPExact, GPSparse
 ├── data/                Bundled benchmark datasets (motorcycle, Mauna Loa, kin40k stand-ins)
-├── tests/               329,170 C++ assertions
-├── benchmarks/          8 standalone benches + Python GPyTorch comparison
+├── tests/               853 C++ test cases
+├── benchmarks/          10 standalone benches + Python GPyTorch comparison
 ├── examples/            basic_regression, mauna_loa (kernel composition)
 └── python/              pybind11 bindings + pytest suite
 ```
