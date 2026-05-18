@@ -46,7 +46,7 @@ Verify
 
    >>> import lightgp as gp
    >>> gp.__version__
-   '0.1.0'
+   '0.1.1'
    >>> # Check that the SKI solver is wired in:
    >>> hasattr(gp.Solver, "SKI")
    True
