@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // bench_datasets — accuracy + timing on three GP benchmark datasets.
 //
 // Datasets are mathematical stand-ins that match the structural characteristics of

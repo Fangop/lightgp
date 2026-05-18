@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // lightgp Python bindings via pybind11.
 //
 // Build: see python/build_python.sh — produces python/lightgp/_core.*.so which

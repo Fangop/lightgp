@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // bench_paper — single binary that produces every timing number in the lightgp paper.
 // Emits one JSON record per line to stdout. Schema matches benchmarks/python/bench_gpytorch.py
 // so the two outputs can be joined on (method, device, N, D, M) for direct comparison.

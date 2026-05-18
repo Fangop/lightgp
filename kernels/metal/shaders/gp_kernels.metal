@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // Canonical source for the GP Metal shaders.
 // Kept in sync with the embedded copy in kernels/metal/metal_context.mm,
 // which compiles this source at runtime via newLibraryWithSource:.

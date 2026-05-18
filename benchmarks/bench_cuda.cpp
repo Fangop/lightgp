@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // bench_cuda — comprehensive CPU (OpenBLAS) vs CUDA timing sweep.
 // Emits one JSON record per line (schema below) so the linux_cuda_report.md generator
 // can join configurations by (section, method, device, N, D, M).

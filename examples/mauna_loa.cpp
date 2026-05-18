@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // Mauna Loa CO2 — the canonical GP-composition demonstration.
 //
 // The signal has three structures: a multi-decade rising trend, an annual

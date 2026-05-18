@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+# Licensed under the MIT License. See LICENSE file in the project root.
+
 #!/usr/bin/env python3
 """Build the six tutorial .ipynb files for the LightGP docs.
 

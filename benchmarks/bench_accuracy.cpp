@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 // bench_accuracy — numerical correctness validation across (method × kernel × backend).
 // Reports RMSE, mean NLL, and 2σ calibration on a synthetic regression task.
 // Also cross-checks Metal vs CPU prediction agreement.

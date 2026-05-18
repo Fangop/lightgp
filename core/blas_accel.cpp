@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Yu-Hsueh Fang. All rights reserved.
+// Licensed under the MIT License. See LICENSE file in the project root.
+
 #include "blas_accel.h"
 
 #if defined(LIGHTGP_HAS_ACCELERATE) || defined(LIGHTGP_HAS_OPENBLAS)
