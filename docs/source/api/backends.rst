@@ -53,7 +53,7 @@ On Apple Silicon (no CUDA), the rules are:
      - The Toeplitz FFT path lives only in Accelerate vDSP.
    * - :attr:`Solver.CG` and :math:`N > 2000`
      - ``Metal``
-     - Matrix-free RBF matvec on Metal wins by ~60× vs explicit.
+     - Matrix-free RBF matvec on Metal wins by ~32× vs explicit.
    * - :math:`D \ge 16` and :math:`N \ge 2000`
      - ``Metal``
      - Tiled / float4 kernel construction beats CPU once the kernel

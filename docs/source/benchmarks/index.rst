@@ -12,8 +12,8 @@ Methodology
 
 - Each cell is the median of 3 runs (5 for component micro-benchmarks),
   warmup discarded.
-- "GPLite CPU" uses Accelerate (CBLAS + LAPACK + AMX coprocessor).
-- "GPLite Metal" uses the Metal compute shaders.
+- "LightGP CPU" uses Accelerate (CBLAS + LAPACK + AMX coprocessor).
+- "LightGP Metal" uses the Metal compute shaders.
 - "GPyTorch MPS" uses PyTorch's Apple Silicon backend; rows marked
   *(gap)* fall back to CPU because the underlying op is missing on MPS
   (e.g. ``aten::_linalg_eigh.eigenvalues`` for exact-GP variance).
@@ -45,17 +45,17 @@ Fit + predict on synthetic ``y = sin(x)`` 1-D data:
    :widths: 32 14 16 14 16 8
 
    * - Config
-     - GPLite CPU
-     - GPLite Metal
+     - LightGP CPU
+     - LightGP Metal
      - GPyTorch CPU
      - GPyTorch MPS
      - best ratio
    * - Exact RBF, N=2048, D=4
-     - **44 ms**
+     - **23.6 ms**
      - 195 ms
      - 89 ms
      - (gap*)
-     - 2.0× faster
+     - 3.8× faster
    * - Exact Matérn-5/2, N=2048, D=4
      - **42 ms**
      - 191 ms
@@ -63,29 +63,30 @@ Fit + predict on synthetic ``y = sin(x)`` 1-D data:
      - (gap*)
      - 2.5× faster
    * - Sparse RBF, N=10000, M=200
-     - **25 ms**
+     - **18.5 ms**
      - 42 ms
      - 42 ms
      - 69 ms
-     - 1.7× faster
+     - 2.3× faster
    * - Sparse RBF, N=50000, M=200
-     - **114 ms**
+     - **97.4 ms**
      - 156 ms
      - 196 ms
      - **98 ms**
-     - 1.16× slower (vs MPS)
+     - 2.0× faster vs CPU; on par with MPS
    * - Matrix-free :math:`K\mathbf v`, N=20000
      - n/a
      - **22 ms**
      - n/a
      - (no equiv)
-     - 60× over explicit
+     - 32× over explicit
 
 \*GPyTorch MPS missing op for exact-GP variance — falls back to CPU.
 
-GPLite CPU beats GPyTorch CPU at every measured size — same Accelerate
-underneath, less Python dispatch overhead. The matrix-free
-:math:`K\mathbf v` path has no GPyTorch-on-MPS equivalent.
+LightGP CPU is faster than GPyTorch CPU across the measured exact and
+small-to-mid sparse configurations — same Accelerate underneath, less
+Python dispatch overhead. The matrix-free :math:`K\mathbf v` path has no
+GPyTorch-on-MPS equivalent.
 
 Component micro-benchmarks
 --------------------------
@@ -97,16 +98,16 @@ Cholesky factorization at increasing N, fp32:
    :widths: 20 30 30
 
    * - N
-     - GPLite CPU (Accelerate)
-     - GPLite Metal
+     - LightGP CPU (Accelerate)
+     - LightGP Metal
    * - 1024
-     - 1.4 ms
+     - 0.84 ms
      - 12.0 ms
    * - 2048
-     - 8.5 ms
+     - 4.6 ms
      - 26.0 ms
    * - 4096
-     - 49.0 ms
+     - 41.5 ms
      - 88.0 ms
 
 Apple's AMX matrix coprocessor wins the dense Cholesky regime on Apple
@@ -127,19 +128,19 @@ materialization through Accelerate ``sgemm``:
      - Matrix-free (Metal)
      - Memory: explicit / free
    * - 5,000
-     - 22 ms
+     - 41.7 ms
      - 4 ms
      - 100 MB / 80 KB
    * - 10,000
-     - 92 ms
+     - 194 ms
      - 9 ms
      - 400 MB / 160 KB
    * - 20,000
-     - 380 ms
+     - 707 ms
      - **22 ms**
      - 1.6 GB / 320 KB
 
-The 60× speedup at N=20k is bandwidth-bound: explicit forms the
+The ~32× speedup at N=20k is bandwidth-bound: explicit forms the
 1.6 GB kernel matrix and streams it through ``sgemm`` once;
 matrix-free fuses kernel construction and matvec into a single Metal
 shader pass.
