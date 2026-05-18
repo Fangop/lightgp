@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use LightGP in your research, please cite our paper."
+title: "LightGP"
+type: software
+license: MIT
+url: "https://github.com/Fangop/lightgp"
+repository-code: "https://github.com/Fangop/lightgp"
+authors:
+  - family-names: "Fang"
+    given-names: "Yu-Hsueh"
+    orcid: "https://orcid.org/0009-0004-4165-1253"
+    affiliation: "National Taiwan University; Georgia Institute of Technology"
+preferred-citation:
+  type: article
+  title: "LightGP: Lightweight Gaussian Process Inference in C++ on Metal and CUDA"
+  authors:
+    - family-names: "Fang"
+      given-names: "Yu-Hsueh"
+      orcid: "https://orcid.org/0009-0004-4165-1253"
+  year: 2026
+  url: "https://arxiv.org/abs/2026.XXXXX"
+  journal: "arXiv preprint"
