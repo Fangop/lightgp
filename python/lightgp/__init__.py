@@ -3,7 +3,10 @@
 
 """lightgp — Lightweight Gaussian Process inference.
 
-C++/Metal/Accelerate under the hood. No PyTorch. No TensorFlow. Just numpy.
+Native C++17 core with Apple Metal + Accelerate on macOS and NVIDIA CUDA
++ OpenBLAS on Linux. NumPy-first Python API designed to complement
+deep-learning GP libraries when a small dependency footprint or direct
+C++ embedding matters.
 
 Example:
     >>> import numpy as np
