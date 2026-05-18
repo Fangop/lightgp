@@ -250,17 +250,19 @@ lightgp/
 
 ## Citation
 
-If you use lightgp in academic work, please cite:
+If you use LightGP in your research, please cite:
 
 ```bibtex
-@misc{fang2026lightgp,
-  title  = {lightgp: Lightweight Gaussian Process Inference in C++ on Metal and CUDA},
-  author = {YuHsueh Fang},
-  year   = {2026},
-  url    = {https://github.com/Fangop/lightgp}
+@article{fang2026lightgp,
+  title   = {LightGP: Lightweight Gaussian Process Inference in C++ on Metal and CUDA},
+  author  = {Fang, Yu-Hsueh},
+  journal = {arXiv preprint arXiv:2026.XXXXX},
+  year    = {2026}
 }
 ```
 
+📄 [Read the paper](https://arxiv.org/abs/2026.XXXXX)
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT License. Copyright (c) 2026 Yu-Hsueh Fang. See [LICENSE](LICENSE) for the full text.
