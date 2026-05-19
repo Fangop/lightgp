@@ -13,11 +13,10 @@ option(LIGHTGP_ENABLE_CUDA "Enable CUDA backend" OFF)
 option(LIGHTGP_ENABLE_OPENBLAS "Enable OpenBLAS / LAPACK on Linux" OFF)
 option(LIGHTGP_ENABLE_ACCELERATE "Use Apple Accelerate on macOS" OFF)
 
-# scikit-build-core sets SKBUILD when invoked via pip / python -m build.
-# In that mode default to a Python-module-only build: skip tests / examples /
-# benchmarks, and auto-enable the right platform backend.
-if(DEFINED SKBUILD)
-    set(LIGHTGP_BUILD_PYTHON ON CACHE BOOL "" FORCE)
+# When building the Python module (set by pyproject.toml cmake.args or by user)
+# default to a Python-module-only build: skip tests / examples / benchmarks,
+# and auto-enable the right platform backend so the resulting wheel is useful.
+if(LIGHTGP_BUILD_PYTHON)
     set(LIGHTGP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LIGHTGP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(LIGHTGP_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
@@ -47,6 +46,8 @@ set(LIGHTGP_CORE_SOURCES
     solvers/cpu/slq_cpu.cpp
     inference/gp_exact.cpp
     inference/gp_sparse.cpp
+    inference/ski.cpp
+    inference/ski_accel.cpp
     data/datasets.cpp
 )
 
@@ -74,6 +75,7 @@ if(LIGHTGP_ENABLE_CUDA)
         kernels/cuda/rbf_matvec_cuda.cu
         solvers/cuda/cholesky_cuda.cu
         solvers/cuda/cholesky_solve_cuda.cu
+        inference/ski_cuda.cu
     )
 endif()
 
@@ -147,6 +149,7 @@ if(LIGHTGP_BUILD_TESTS)
         tests/test_matern_metal.cpp
         tests/test_kernel_objects.cpp
         tests/test_cuda.cpp
+        tests/test_ski.cpp
     )
     target_link_libraries(run_tests PRIVATE lightgp)
     add_test(NAME run_tests COMMAND run_tests)
