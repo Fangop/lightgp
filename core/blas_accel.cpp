@@ -13,7 +13,12 @@
 #include <Accelerate/Accelerate.h>
 namespace lightgp { using lapack_int = __LAPACK_int; }
 #else  // LIGHTGP_HAS_OPENBLAS
+// Debian's /usr/include/x86_64-linux-gnu/cblas.h does not wrap declarations
+// in extern "C", while OpenBLAS's manylinux/CentOS cblas.h does. Force C
+// linkage on the include so we link against C symbols on both layouts.
+extern "C" {
 #include <cblas.h>
+}
 namespace lightgp { using lapack_int = int; }
 // LAPACK Fortran symbol — declared here so we don't depend on the optional lapacke headers.
 extern "C" void spotrf_(const char* uplo, const lightgp::lapack_int* n,
