@@ -8,25 +8,37 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(LIGHTGP_BUILD_TESTS "Build unit tests" ON)
 option(LIGHTGP_BUILD_EXAMPLES "Build examples" ON)
 option(LIGHTGP_BUILD_PYTHON "Build the pybind11 Python module" OFF)
-option(LIGHTGP_ENABLE_METAL "Enable Metal backend" OFF)
 option(LIGHTGP_ENABLE_CUDA "Enable CUDA backend" OFF)
-option(LIGHTGP_ENABLE_OPENBLAS "Enable OpenBLAS / LAPACK on Linux" OFF)
-option(LIGHTGP_ENABLE_ACCELERATE "Use Apple Accelerate on macOS" OFF)
 
-# When building the Python module (set by pyproject.toml cmake.args or by user)
-# default to a Python-module-only build: skip tests / examples / benchmarks,
-# and auto-enable the right platform backend so the resulting wheel is useful.
+# Compute platform-aware defaults for the optional backends. These only set the
+# default — the user can still override on the command line, e.g.
+#   pip install --config-settings=cmake.define.LIGHTGP_ENABLE_METAL=OFF lightgp
+# yields a CPU-only build on Apple Silicon. cibuildwheel uses the same hook to
+# build CPU-only wheels for macOS-x86_64 (Intel Macs).
+set(_lightgp_default_metal OFF)
+set(_lightgp_default_accel OFF)
+set(_lightgp_default_openblas OFF)
 if(LIGHTGP_BUILD_PYTHON)
     set(LIGHTGP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LIGHTGP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(LIGHTGP_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
     if(APPLE)
-        set(LIGHTGP_ENABLE_METAL ON CACHE BOOL "" FORCE)
-        set(LIGHTGP_ENABLE_ACCELERATE ON CACHE BOOL "" FORCE)
+        # Metal default: ON for arm64 (Apple Silicon — fast, well-tested).
+        # OFF for x86_64 (Intel Mac — weaker integrated GPUs, simdgroup ops
+        # not universally supported). Accelerate works on both.
+        if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64" OR
+           (NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64"))
+            set(_lightgp_default_metal ON)
+        endif()
+        set(_lightgp_default_accel ON)
     elseif(UNIX)
-        set(LIGHTGP_ENABLE_OPENBLAS ON CACHE BOOL "" FORCE)
+        set(_lightgp_default_openblas ON)
     endif()
 endif()
+
+option(LIGHTGP_ENABLE_METAL "Enable Metal backend" ${_lightgp_default_metal})
+option(LIGHTGP_ENABLE_ACCELERATE "Use Apple Accelerate on macOS" ${_lightgp_default_accel})
+option(LIGHTGP_ENABLE_OPENBLAS "Enable OpenBLAS / LAPACK on Linux" ${_lightgp_default_openblas})
 
 set(LIGHTGP_CORE_SOURCES
     core/tensor.cpp

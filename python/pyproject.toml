@@ -39,9 +39,23 @@ test-requires = ["pytest", "numpy"]
 test-command = "pytest {project}/python/tests -v -k 'not vdsp and not large_n'"
 
 [tool.cibuildwheel.macos]
-archs = ["arm64"]
-# macOS-arm64 wheels need a recent deployment target so Metal compiles cleanly.
+# Build both Apple Silicon and Intel Mac wheels. cibuildwheel cross-compiles
+# the non-host arch from a single runner — see overrides below for per-arch
+# CMake flags and SDK targets.
+archs = ["arm64", "x86_64"]
+
+[[tool.cibuildwheel.overrides]]
+# Apple Silicon: Metal + Accelerate. Metal 3 simdgroup ops require macOS 14.
+select = "*-macosx_arm64"
 environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
+
+[[tool.cibuildwheel.overrides]]
+# Intel Mac: Accelerate only — Intel integrated GPUs don't reliably support
+# the Metal 3 simdgroup matrix multiplies the Cholesky kernel uses. Lower
+# deployment target so the wheel installs on older macOS versions.
+select = "*-macosx_x86_64"
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+config-settings = "cmake.define.LIGHTGP_ENABLE_METAL=OFF"
 
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]
