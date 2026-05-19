@@ -120,11 +120,20 @@ endif()
 if((NOT APPLE) AND LIGHTGP_ENABLE_OPENBLAS)
     find_package(BLAS)
     find_package(LAPACK)
-    if(BLAS_FOUND AND LAPACK_FOUND)
+    # FindBLAS locates the library but not the headers. On manylinux2014 /
+    # CentOS 7 the openblas-devel rpm installs cblas.h under
+    # /usr/include/openblas/, while Debian places it at /usr/include/. Search
+    # both layouts explicitly.
+    find_path(CBLAS_INCLUDE_DIR cblas.h
+        PATH_SUFFIXES openblas
+        DOC "Directory containing cblas.h"
+    )
+    if(BLAS_FOUND AND LAPACK_FOUND AND CBLAS_INCLUDE_DIR)
         target_compile_definitions(lightgp PUBLIC LIGHTGP_HAS_OPENBLAS)
+        target_include_directories(lightgp PUBLIC ${CBLAS_INCLUDE_DIR})
         target_link_libraries(lightgp PUBLIC ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
     else()
-        message(WARNING "LIGHTGP_ENABLE_OPENBLAS=ON but BLAS/LAPACK not found; falling back to reference path")
+        message(WARNING "LIGHTGP_ENABLE_OPENBLAS=ON but BLAS/LAPACK or cblas.h not found; falling back to reference path")
     endif()
 endif()
 
