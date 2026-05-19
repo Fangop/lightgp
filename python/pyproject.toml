@@ -46,5 +46,6 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]
 # Build environment installs OpenBLAS so the LIGHTGP_ENABLE_OPENBLAS branch in
-# CMakeLists.txt finds it. CUDA wheels are deferred.
-before-all = "yum install -y openblas-devel lapack-devel || apt-get update && apt-get install -y libopenblas-dev liblapacke-dev"
+# CMakeLists.txt finds it. manylinux uses yum; the apt-get fallback covers
+# the (currently unused) Debian-based images. CUDA wheels are deferred.
+before-all = "if command -v yum >/dev/null 2>&1; then yum install -y openblas-devel lapack-devel; else apt-get update && apt-get install -y libopenblas-dev liblapack-dev; fi"
