@@ -7,9 +7,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LIGHTGP_BUILD_TESTS "Build unit tests" ON)
 option(LIGHTGP_BUILD_EXAMPLES "Build examples" ON)
+option(LIGHTGP_BUILD_PYTHON "Build the pybind11 Python module" OFF)
 option(LIGHTGP_ENABLE_METAL "Enable Metal backend" OFF)
 option(LIGHTGP_ENABLE_CUDA "Enable CUDA backend" OFF)
 option(LIGHTGP_ENABLE_OPENBLAS "Enable OpenBLAS / LAPACK on Linux" OFF)
+option(LIGHTGP_ENABLE_ACCELERATE "Use Apple Accelerate on macOS" OFF)
+
+# scikit-build-core sets SKBUILD when invoked via pip / python -m build.
+# In that mode default to a Python-module-only build: skip tests / examples /
+# benchmarks, and auto-enable the right platform backend.
+if(DEFINED SKBUILD)
+    set(LIGHTGP_BUILD_PYTHON ON CACHE BOOL "" FORCE)
+    set(LIGHTGP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LIGHTGP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(LIGHTGP_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+    if(APPLE)
+        set(LIGHTGP_ENABLE_METAL ON CACHE BOOL "" FORCE)
+        set(LIGHTGP_ENABLE_ACCELERATE ON CACHE BOOL "" FORCE)
+    elseif(UNIX)
+        set(LIGHTGP_ENABLE_OPENBLAS ON CACHE BOOL "" FORCE)
+    endif()
+endif()
 
 set(LIGHTGP_CORE_SOURCES
     core/tensor.cpp
@@ -92,6 +110,11 @@ if(APPLE AND NOT LIGHTGP_ENABLE_METAL)
     # Empty: Accelerate is opt-in via the bash builder; CMake build defaults to reference C++.
 endif()
 
+if(APPLE AND LIGHTGP_ENABLE_ACCELERATE)
+    target_compile_definitions(lightgp PUBLIC LIGHTGP_HAS_ACCELERATE)
+    target_link_libraries(lightgp PUBLIC "-framework Accelerate")
+endif()
+
 if((NOT APPLE) AND LIGHTGP_ENABLE_OPENBLAS)
     find_package(BLAS)
     find_package(LAPACK)
@@ -141,4 +164,13 @@ if(LIGHTGP_BUILD_BENCHMARKS)
         target_link_libraries(${bench} PRIVATE lightgp)
     endforeach()
     add_custom_target(benchmarks DEPENDS bench_rbf bench_cholesky bench_gp_e2e bench_matvec bench_sparse bench_paper bench_accuracy bench_datasets)
+endif()
+
+if(LIGHTGP_BUILD_PYTHON)
+    find_package(pybind11 CONFIG REQUIRED)
+    pybind11_add_module(_core MODULE python/bindings.cpp)
+    target_link_libraries(_core PRIVATE lightgp)
+    # scikit-build-core installs the .so next to python/lightgp/__init__.py.
+    # wheel.packages in pyproject.toml maps the source tree, install() places the binary.
+    install(TARGETS _core LIBRARY DESTINATION lightgp)
 endif()

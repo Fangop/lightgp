@@ -24,4 +24,27 @@ bench = ["gpytorch>=1.10", "torch>=2.0"]
 [tool.scikit-build]
 cmake.source-dir = ".."
 cmake.args = ["-DLIGHTGP_BUILD_PYTHON=ON"]
+cmake.build-type = "Release"
 wheel.packages = ["lightgp"]
+# Pin a minimum CMake/ninja so cibuildwheel images don't pick up an ancient one.
+cmake.version = ">=3.20"
+ninja.version = ">=1.10"
+
+[tool.cibuildwheel]
+# Skip py3.9 if not strictly required; keep wheels small. Override per-platform below.
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *-win32 *-manylinux_i686 pp*"
+build-verbosity = 1
+test-requires = ["pytest", "numpy"]
+test-command = "pytest {project}/python/tests -v -k 'not vdsp'"
+
+[tool.cibuildwheel.macos]
+archs = ["arm64"]
+# macOS-arm64 wheels need a recent deployment target so Metal compiles cleanly.
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+# Build environment installs OpenBLAS so the LIGHTGP_ENABLE_OPENBLAS branch in
+# CMakeLists.txt finds it. CUDA wheels are deferred.
+before-all = "yum install -y openblas-devel lapack-devel || apt-get update && apt-get install -y libopenblas-dev liblapacke-dev"
