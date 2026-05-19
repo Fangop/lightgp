@@ -5,6 +5,7 @@ Apple Metal + Accelerate (AMX) on macOS; NVIDIA CUDA + OpenBLAS on Linux. NumPy-
 
 [![CI](https://github.com/Fangop/lightgp/actions/workflows/ci.yml/badge.svg)](https://github.com/Fangop/lightgp/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-fangop.github.io%2Flightgp-2563EB)](https://fangop.github.io/lightgp/)
+[![arXiv](https://img.shields.io/badge/arXiv-2605.17898-b31b1b.svg)](https://arxiv.org/abs/2605.17898)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/lightgp.svg)](https://pypi.org/project/lightgp/)
 
@@ -134,7 +135,7 @@ The SKI / KISS-GP path with FFT runs a 500 000-point GP fit + predict in
 equivalent path on Mac). Full numbers, including SKI, GEMM, Cholesky, and
 GPyTorch comparisons across more sizes, are in the
 [benchmarks gallery](https://fangop.github.io/lightgp/benchmarks/) and the
-[accompanying paper](https://fangop.github.io/lightgp/paper).
+[accompanying paper](https://arxiv.org/abs/2605.17898).
 
 ## C++ usage (embedding without Python)
 
@@ -252,15 +253,19 @@ lightgp/
 If you use LightGP in your research, please cite:
 
 ```bibtex
-@article{fang2026lightgp,
-  title   = {LightGP: Lightweight Gaussian Process Inference in C++ on Metal and CUDA},
-  author  = {Fang, Yu-Hsueh},
-  journal = {arXiv preprint arXiv:2026.XXXXX},
-  year    = {2026}
+@misc{fang2026lightgp,
+  title         = {LightGP: Lightweight Gaussian Process Inference in C++ on Metal and CUDA},
+  author        = {Yu-Hsueh Fang},
+  year          = {2026},
+  eprint        = {2605.17898},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  doi           = {10.48550/arXiv.2605.17898},
+  url           = {https://arxiv.org/abs/2605.17898}
 }
 ```
 
-📄 [Read the paper](https://arxiv.org/abs/2026.XXXXX)
+📄 [Read the paper](https://arxiv.org/abs/2605.17898)
 
 ## License
 

@@ -68,6 +68,25 @@ Why LightGP?
 - **Honest benchmarking** against GPyTorch on the same hardware — see the
   :doc:`benchmarks <benchmarks/index>`.
 
+Citation
+--------
+
+If you use LightGP in academic work, please cite the accompanying
+`arXiv preprint <https://arxiv.org/abs/2605.17898>`_:
+
+.. code-block:: bibtex
+
+   @misc{fang2026lightgp,
+     title         = {LightGP: Lightweight Gaussian Process Inference in C++ on Metal and CUDA},
+     author        = {Yu-Hsueh Fang},
+     year          = {2026},
+     eprint        = {2605.17898},
+     archivePrefix = {arXiv},
+     primaryClass  = {cs.LG},
+     doi           = {10.48550/arXiv.2605.17898},
+     url           = {https://arxiv.org/abs/2605.17898}
+   }
+
 .. toctree::
    :maxdepth: 2
    :hidden:
