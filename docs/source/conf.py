@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "python"))
 project = "LightGP"
 author = "YuHsueh Fang"
 copyright = "2026, YuHsueh Fang"
-release = "0.1.1"
+release = "0.1.2"
 version = "0.1"
 
 # -- General configuration ---------------------------------------------------
