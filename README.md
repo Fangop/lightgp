@@ -14,15 +14,24 @@ Apple Metal + Accelerate (AMX) on macOS; NVIDIA CUDA + OpenBLAS on Linux. NumPy-
 ## Install
 
 ```bash
+pip install lightgp
+```
+
+Prebuilt wheels are published for macOS-arm64 (with Metal + Accelerate)
+and manylinux2014 x86_64 (with OpenBLAS). The Linux wheels are CPU-only;
+for the CUDA backend, build from source with ``LIGHTGP_ENABLE_CUDA=1``.
+
+From source (any platform — requires a C++17 compiler):
+
+```bash
 git clone https://github.com/Fangop/lightgp.git
 cd lightgp/python
 pip install -e ".[test]"
 ```
 
-LightGP builds from source via ``scikit-build-core``. On macOS-arm64 the
-build auto-detects Apple Accelerate and Metal; on Linux it auto-detects
-OpenBLAS / LAPACK and, when ``LIGHTGP_ENABLE_CUDA=1`` is set, CUDA. A
-C++17 compiler is required.
+The source build uses ``scikit-build-core``. On macOS-arm64 it
+auto-detects Apple Accelerate and Metal; on Linux it auto-detects
+OpenBLAS / LAPACK and, when ``LIGHTGP_ENABLE_CUDA=1`` is set, CUDA.
 
 ## Quick start
 
